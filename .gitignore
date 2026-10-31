@@ -5,3 +5,4 @@ dist/
 .DS_Store
 .taste-skill/
 deploy/.ssh-session/
+deploy/proxy-strace.txt
