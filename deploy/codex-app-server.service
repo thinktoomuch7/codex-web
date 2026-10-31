@@ -1,0 +1,20 @@
+[Unit]
+Description=Codex app-server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=root
+Group=root
+Environment=https_proxy=http://127.0.0.1:7890
+Environment=http_proxy=http://127.0.0.1:7890
+Environment=NO_PROXY=127.0.0.1,localhost
+Environment=CODEX_HOME=/var/lib/codex-web/codex-home
+RuntimeDirectory=codex
+RuntimeDirectoryMode=0750
+ExecStart=/usr/local/bin/codex app-server --listen unix:///run/codex/app.sock
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

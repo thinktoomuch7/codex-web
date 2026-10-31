@@ -1,0 +1,315 @@
+/* 1440: sidebar 228 + sheet inset 8 on the right and bottom.
+   Sheet outer width = 1440 - 228 - 8 = 1204.
+   Sheet padding 24 + 24. Inner width = 1156.
+   One column, so the transcript, the approval and the composer share that width. */
+
+.mark {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  stroke: var(--accent);
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.title-row h1 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.frame {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100svh;
+  padding: 0 var(--sheet-inset) var(--sheet-inset) 0;
+}
+
+.topbar {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px 0 16px;
+  background: var(--ground);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sheet {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-height: 0;
+  padding: var(--pad);
+  background: var(--surface);
+  border: 1px solid #eaeaea;
+  border-radius: var(--radius-sheet);
+}
+
+.sidebar {
+  background: var(--ground);
+  border: 0;
+}
+
+.nav-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.nav-row .nav-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-delete {
+  flex: none;
+  margin-top: 8px;
+  height: 28px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.nav-delete:hover {
+  color: var(--negative);
+}
+
+.nav-item {
+  width: 100%;
+  height: auto;
+  min-height: 44px;
+  align-items: flex-start;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.nav-copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-copy small,
+.mono {
+  font-family: var(--mono);
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+
+.sidebar > .btn {
+  width: 100%;
+}
+
+.sidebar-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.transcript h2 {
+  font-size: var(--fs-section);
+  font-weight: 600;
+}
+
+.dialogue {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bubble {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-card);
+  background: var(--raised);
+}
+
+.bubble.mine {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.bubble p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.command-card {
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--chart-1);
+  border-radius: var(--radius-card);
+  padding: 16px 20px 12px;
+}
+
+.empty {
+  border-color: var(--border);
+}
+
+.command-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.command-card h2 {
+  font-size: var(--fs-section);
+  font-weight: 600;
+}
+
+.command-card pre {
+  margin: 0;
+  max-height: 7.5rem;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.command-card .command-line + pre {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.records {
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid var(--rule);
+}
+
+.records .row {
+  align-items: flex-start;
+}
+
+.records .row > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.kind {
+  width: 4.5rem;
+  flex: none;
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.composer textarea {
+  min-height: 72px;
+  padding: 8px 12px;
+  resize: vertical;
+  border: 1px solid var(--control);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+
+.notice {
+  color: var(--warning);
+}
+
+.error-line {
+  color: var(--negative);
+}
+
+.login-note {
+  margin: 8px;
+  color: var(--muted);
+}
+
+.sheet.fit {
+  flex: 0 0 auto;
+}
+
+.login-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--gap);
+  align-items: start;
+}
+
+.login-form {
+  max-width: none;
+}
+
+.login-facts h2 {
+  font-size: var(--fs-section);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 860px) {
+  .frame {
+    min-height: 100svh;
+    padding: 0;
+  }
+
+  .sheet {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .composer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .login-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

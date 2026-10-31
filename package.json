@@ -1,0 +1,17 @@
+{
+  "name": "codex-web",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "npm run typecheck -w gateway && npm run typecheck -w web",
+    "test": "npm run test -w gateway",
+    "build": "npm run build -w web",
+    "start": "npm run start -w gateway"
+  },
+  "workspaces": [
+    "gateway",
+    "web"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "bindHost": "127.0.0.1",
+  "bindPort": 8787,
+  "projectRoots": ["/srv/projects"],
+  "appServerSocket": "/run/codex/app.sock",
+  "allowedCodexVersions": ["0.0.0"],
+  "httpsProxy": "http://127.0.0.1:7890",
+  "username": "admin",
+  "password": "change-me",
+  "dataDir": "/var/lib/codex-web"
+}

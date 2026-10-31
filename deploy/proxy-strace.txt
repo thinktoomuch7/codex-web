@@ -1,0 +1,152 @@
+read(3, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\260\1\1\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\36\0\35\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\200%\0\0\0\0\0\0\200%\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(3, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\270Q\0\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\35\0\34\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\10\20\0\0\0\0\0\0\10\20\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\220\243\2\0\0\0\0\0@\0\0\0\0\0\0\0\20^ \0\0\0\0\0\0\0\0\0@\08\0\16\0@\0@\0?\0\6\0\0\0\4\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\20\3\0\0\0\0\0\0\20\3\0\0\0\0\0\0\10\0\0\0\0\0\0\0"..., 832) = 832
+read(3, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0P\1\2\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\34\0\33\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\350*\0\0\0\0\0\0\350*\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(3, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\240a\0\0\0\0\0\0\0\0\0\0@\08\0\f\0@\0\35\0\34\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\30\23\0\0\0\0\0\0\30\23\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(3, "40\n", 7)                      = 3
+read(3, "# Locale name alias data base.\n# Copyright (C) 1996-2024 Free Software Foundation, Inc.\n#\n# This program is free softwar"..., 4096) = 2996
+read(3, "", 4096)                       = 0
+connect(3, {sa_family=AF_UNIX, sun_path="/var/run/nscd/socket"}, 110) = -1 ENOENT (No such file or directory)
+connect(3, {sa_family=AF_UNIX, sun_path="/var/run/nscd/socket"}, 110) = -1 ENOENT (No such file or directory)
+read(3, "# /etc/nsswitch.conf\n#\n# Example configuration of GNU Name Service Switch functionality.\n# If you have the `glibc-doc-re"..., 4096) = 510
+read(3, "", 4096)                       = 0
+read(3, "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nbin:x:2:2:bin:/bin:/usr/sbin/nologin\nsys"..., 4096) = 2023
+read(3, "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nbin:x:2:2:bin:/bin:/usr/sbin/nologin\nsys"..., 4096) = 2023
+read(3, "#%PAM-1.0\nauth\t\tsufficient\tpam_rootok.so\nsession\t\toptional\tpam_keyinit.so revoke\nsession\t\trequired\tpam_limits.so\nsession"..., 4096) = 143
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\2301\0\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\34\0\33\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\270\n\0\0\0\0\0\0\270\n\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\310\241\2\0\0\0\0\0\0\0\0\0@\08\0\f\0@\0\37\0\36\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0X_\0\0\0\0\0\0X_\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\200\203\t\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\35\0\34\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0h\36\0\0\0\0\0\0h\36\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(4, "nodev\tsysfs\nnodev\ttmpfs\nnodev\tbdev\nnodev\tproc\nnodev\tcgroup\nnodev\tcgroup2\nnodev\tcpuset\nnodev\tdevtmpfs\nnodev\tconfigfs\nnode"..., 1024) = 423
+read(4, "", 1024)                       = 0
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\2401\0\0\0\0\0\0\0\0\0\0@\08\0\f\0@\0\35\0\34\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\370\t\0\0\0\0\0\0\370\t\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\250q\0\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\35\0\34\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0(\24\0\0\0\0\0\0(\24\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\260\341\0\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\35\0\34\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\310 \0\0\0\0\0\0\310 \0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0H\1\3\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\33\0\32\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\20\24\0\0\0\0\0\0\20\24\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(3, "", 4096)                       = 0
+read(3, "#\n# /etc/pam.d/other - specify the PAM fallback behaviour\n#\n# Note that this file is used for any unspecified service; f"..., 4096) = 520
+read(4, "#\n# /etc/pam.d/common-auth - authentication settings common to all services\n#\n# This file is included from other service"..., 4096) = 1242
+read(5, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0h1\0\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\27\0\26\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\300\5\0\0\0\0\0\0\300\5\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(5, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\2301\0\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\34\0\33\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0 \7\0\0\0\0\0\0 \7\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(5, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\220\36\0\0\0\0\0\0@\0\0\0\0\0\0\0@A\0\0\0\0\0\0\0\0\0\0@\08\0\r\0@\0\34\0\33\0\6\0\0\0\4\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\330\2\0\0\0\0\0\0\330\2\0\0\0\0\0\0\10\0\0\0\0\0\0\0"..., 832) = 832
+read(5, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\340\201\0\0\0\0\0\0@\0\0\0\0\0\0\0\320\301\0\0\0\0\0\0\0\0\0\0@\08\0\r\0@\0\36\0\35\0\6\0\0\0\4\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\330\2\0\0\0\0\0\0\330\2\0\0\0\0\0\0\10\0\0\0\0\0\0\0"..., 832) = 832
+read(4, "", 4096)                       = 0
+read(4, "#\n# /etc/pam.d/common-account - authorization settings common to all services\n#\n# This file is included from other servi"..., 4096) = 1208
+read(4, "", 4096)                       = 0
+read(4, "#\n# /etc/pam.d/common-password - password-related modules common to all services\n#\n# This file is included from other se"..., 4096) = 1620
+read(4, "", 4096)                       = 0
+read(4, "#\n# /etc/pam.d/common-session - session-related modules common to all services\n#\n# This file is included from other serv"..., 4096) = 1427
+read(5, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\2301\0\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\34\0\33\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\300\n\0\0\0\0\0\0\300\n\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(5, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\250,\10\0\0\0\0\0\0\0\0\0@\08\0\f\0@\0!\0 \0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\270\253\0\0\0\0\0\0\270\253\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(5, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0h\201\16\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\37\0\36\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\350\366\0\0\0\0\0\0\350\366\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+read(4, "", 4096)                       = 0
+read(3, "", 4096)                       = 0
+read(3, "65536\n", 31)                  = 6
+connect(3, {sa_family=AF_UNIX, sun_path="/var/run/nscd/socket"}, 110) = -1 ENOENT (No such file or directory)
+connect(3, {sa_family=AF_UNIX, sun_path="/var/run/nscd/socket"}, 110) = -1 ENOENT (No such file or directory)
+read(3, "root:x:0:\ndaemon:x:1:\nbin:x:2:\nsys:x:3:\nadm:x:4:syslog\ntty:x:5:\ndisk:x:6:\nlp:x:7:\nmail:x:8:\nnews:x:9:\nuucp:x:10:\nman:x:1"..., 4096) = 813
+read(3, "", 4096)                       = 0
+read(3, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\350\241\5\0\0\0\0\0\0\0\0\0@\08\0\f\0@\0\37\0\36\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\220t\0\0\0\0\0\0\220t\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+connect(4, {sa_family=AF_UNIX, sun_path="/run/systemd/userdb/io.systemd.DynamicUser"}, 45) = 0
+read(3, "e67a7411-a465-496d-93aa-d718b8ae447a\n", 38) = 37
+read(3, "", 1)                          = 0
+sendto(4, "{\"method\":\"io.systemd.UserDatabase.GetMemberships\",\"parameters\":{\"userName\":\"codexweb\",\"service\":\"io.systemd.DynamicUser"..., 136, MSG_DONTWAIT|MSG_NOSIGNAL, NULL, 0) = 136
+recvfrom(4, "{\"error\":\"io.systemd.UserDatabase.NoRecordFound\",\"parameters\":{}}\0", 135152, MSG_DONTWAIT, NULL, NULL) = 66
+sendto(3, [{nlmsg_len=132, nlmsg_type=0x44f /* NLMSG_??? */, nlmsg_flags=NLM_F_REQUEST|NLM_F_ACK, nlmsg_seq=1, nlmsg_pid=0}, "\x6f\x70\x3d\x50\x41\x4d\x3a\x73\x65\x74\x63\x72\x65\x64\x20\x67\x72\x61\x6e\x74\x6f\x72\x73\x3d\x70\x61\x6d\x5f\x72\x6f\x6f\x74\x6f\x6b\x20\x61\x63\x63\x74\x3d\x22\x63\x6f\x64\x65\x78\x77\x65\x62\x22\x20\x65\x78\x65\x3d\x22\x2f\x75\x73\x72\x2f\x73\x62\x69\x6e\x2f\x72\x75\x6e\x75\x73\x65\x72\x22\x20\x68\x6f\x73\x74\x6e\x61\x6d\x65\x3d\x3f\x20\x61\x64\x64\x72\x3d\x3f\x20\x74\x65\x72\x6d\x69\x6e\x61\x6c\x3d\x3f\x20\x72\x65\x73\x3d\x73\x75\x63\x63\x65\x73\x73\x00"], 132, 0, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, 12) = 132
+recvfrom(3, [{nlmsg_len=36, nlmsg_type=NLMSG_ERROR, nlmsg_flags=NLM_F_CAPPED, nlmsg_seq=1, nlmsg_pid=25187}, {error=0, msg={nlmsg_len=132, nlmsg_type=0x44f /* AUDIT_??? */, nlmsg_flags=NLM_F_REQUEST|NLM_F_ACK, nlmsg_seq=1, nlmsg_pid=0}}], 8988, MSG_PEEK|MSG_DONTWAIT, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, [12]) = 36
+recvfrom(3, [{nlmsg_len=36, nlmsg_type=NLMSG_ERROR, nlmsg_flags=NLM_F_CAPPED, nlmsg_seq=1, nlmsg_pid=25187}, {error=0, msg={nlmsg_len=132, nlmsg_type=0x44f /* AUDIT_??? */, nlmsg_flags=NLM_F_REQUEST|NLM_F_ACK, nlmsg_seq=1, nlmsg_pid=0}}], 8988, MSG_DONTWAIT, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, [12]) = 36
+read(3, "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nbin:x:2:2:bin:/bin:/usr/sbin/nologin\nsys"..., 4096) = 2023
+read(3, "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nbin:x:2:2:bin:/bin:/usr/sbin/nologin\nsys"..., 4096) = 2023
+read(3, "Limit                     Soft Limit           Hard Limit           Units     \nMax cpu time              unlimited      "..., 1024) = 1024
+read(3, "  \nMax msgqueue size         819200               819200               bytes     \nMax nice priority         0           "..., 1024) = 299
+read(3, "", 1024)                       = 0
+read(3, "# /etc/security/limits.conf\n#\n#This file sets the resource limits for the users logged in via PAM.\n#It does not affect r"..., 4096) = 2752
+read(3, "", 4096)                       = 0
+read(3, "#\n# /etc/login.defs - Configuration control definitions for the login package.\n#\n# Three items must be defined:  MAIL_DI"..., 4096) = 4096
+read(3, " issuing \n# the \"mesg y\" command.\n\nTTYGROUP\ttty\nTTYPERM\t\t0600\n\n#\n# Login configuration initializations:\n#\n#\tERASECHAR\tTe"..., 4096) = 4096
+read(3, "# setting).  Default is none.\n#\n# Use with caution - it is possible for users to gain permanent\n# access to these groups"..., 4096) = 4096
+read(3, "0", 12)                        = 1
+read(3, "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nbin:x:2:2:bin:/bin:/usr/sbin/nologin\nsys"..., 4096) = 2023
+read(3, "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nbin:x:2:2:bin:/bin:/usr/sbin/nologin\nsys"..., 4096) = 2023
+read(3, "TZif2\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\35\0\0\0\3\0\0\0\f\200\0\0\0\240\227\242\200\241y\4\360\310Y^\200\311\t\371p\311\323\275\0\313\5\212\360\313|@\0\322;>\360\323\213{\200\324B\255\360\325E\"\0\326L\277\360\327<\277\0\330\6fp\331\35\362\200\331A|\360\36\272R \37i\233\220"..., 4096) = 561
+read(3, "TZif2\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\35\0\0\0\3\0\0\0\f\377\377\377\377~6C)\377\377\377\377\240\227\242\200\377\377\377\377\241y\4\360\377\377\377\377\310Y^\200\377\377\377\377\311\t\371p\377\377\377\377\311\323\275\0\377\377\377\377\313\5\212\360\377\377\377\377\313|@\0\377\377\377\377\322;>\360\377\377\377\377"..., 4096) = 342
+connect(3, {sa_family=AF_UNIX, sun_path="/dev/log"}, 110) = 0
+sendto(3, "<86>Oct 31 19:15:19 runuser: pam_unix(runuser:session): session opened for user codexweb(uid=996) by root(uid=0)", 112, MSG_NOSIGNAL, NULL, 0) = 112
+sendto(4, [{nlmsg_len=160, nlmsg_type=0x451 /* NLMSG_??? */, nlmsg_flags=NLM_F_REQUEST|NLM_F_ACK, nlmsg_seq=2, nlmsg_pid=0}, "\x6f\x70\x3d\x50\x41\x4d\x3a\x73\x65\x73\x73\x69\x6f\x6e\x5f\x6f\x70\x65\x6e\x20\x67\x72\x61\x6e\x74\x6f\x72\x73\x3d\x70\x61\x6d\x5f\x6b\x65\x79\x69\x6e\x69\x74\x2c\x70\x61\x6d\x5f\x6c\x69\x6d\x69\x74\x73\x2c\x70\x61\x6d\x5f\x75\x6e\x69\x78\x20\x61\x63\x63\x74\x3d\x22\x63\x6f\x64\x65\x78\x77\x65\x62\x22\x20\x65\x78\x65\x3d\x22\x2f\x75\x73\x72\x2f\x73\x62\x69\x6e\x2f\x72\x75\x6e\x75\x73\x65\x72\x22\x20\x68\x6f\x73\x74\x6e\x61\x6d\x65\x3d\x3f\x20\x61\x64\x64\x72\x3d\x3f\x20\x74"...], 160, 0, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, 12) = 160
+recvfrom(4, [{nlmsg_len=36, nlmsg_type=NLMSG_ERROR, nlmsg_flags=NLM_F_CAPPED, nlmsg_seq=2, nlmsg_pid=25187}, {error=0, msg={nlmsg_len=160, nlmsg_type=0x451 /* AUDIT_??? */, nlmsg_flags=NLM_F_REQUEST|NLM_F_ACK, nlmsg_seq=2, nlmsg_pid=0}}], 8988, MSG_PEEK|MSG_DONTWAIT, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, [12]) = 36
+recvfrom(4, [{nlmsg_len=36, nlmsg_type=NLMSG_ERROR, nlmsg_flags=NLM_F_CAPPED, nlmsg_seq=2, nlmsg_pid=25187}, {error=0, msg={nlmsg_len=160, nlmsg_type=0x451 /* AUDIT_??? */, nlmsg_flags=NLM_F_REQUEST|NLM_F_ACK, nlmsg_seq=2, nlmsg_pid=0}}], 8988, MSG_DONTWAIT, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, [12]) = 36
+strace: Process 25189 attached
+[pid 25189] read(4, "#\n# /etc/login.defs - Configuration control definitions for the login package.\n#\n# Three items must be defined:  MAIL_DI"..., 4096) = 4096
+[pid 25189] read(4, " issuing \n# the \"mesg y\" command.\n\nTTYGROUP\ttty\nTTYPERM\t\t0600\n\n#\n# Login configuration initializations:\n#\n#\tERASECHAR\tTe"..., 4096) = 4096
+[pid 25189] read(4, "# setting).  Default is none.\n#\n# Use with caution - it is possible for users to gain permanent\n# access to these groups"..., 4096) = 4096
+[pid 25189] read(4, "IONS\n# LOGIN_STRING\n# NO_PASSWORD_CONSOLE\n# QMAIL_DIR\n\n\n\n", 4096) = 57
+[pid 25189] read(4, "", 4096)           = 0
+[pid 25189] read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\220\243\2\0\0\0\0\0@\0\0\0\0\0\0\0\20^ \0\0\0\0\0\0\0\0\0@\08\0\16\0@\0@\0?\0\6\0\0\0\4\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\20\3\0\0\0\0\0\0\20\3\0\0\0\0\0\0\10\0\0\0\0\0\0\0"..., 832) = 832
+[pid 25189] read(3, "# Locale name alias data base.\n# Copyright (C) 1996-2024 Free Software Foundation, Inc.\n#\n# This program is free softwar"..., 4096) = 2996
+[pid 25189] read(3, "", 4096)           = 0
+[pid 25189] read(3, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0H1\0\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\34\0\33\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\7\0\0\0\0\0\0\0\7\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+[pid 25189] read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0 \205'\0\0\0\0\0\0\0\0\0@\08\0\f\0@\0#\0\"\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0`\304\t\0\0\0\0\0`\304\t\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+[pid 25189] read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0h\201\16\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\37\0\36\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\350\366\0\0\0\0\0\0\350\366\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+[pid 25189] read(3, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0000\303\2\0\0\0\0\0\0\0\0\0@\08\0\f\0@\0\37\0\36\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\3406\0\0\0\0\0\0\3406\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+[pid 25189] read(3, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0@\0\0\0\0\0\0\0H1\0\0\0\0\0\0\0\0\0\0@\08\0\v\0@\0\34\0\33\0\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\240\v\0\0\0\0\0\0\240\v\0\0\0\0\0\0\0\20\0\0\0\0\0\0"..., 832) = 832
+[pid 25189] read(3, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\220\243\2\0\0\0\0\0@\0\0\0\0\0\0\0\20^ \0\0\0\0\0\0\0\0\0@\08\0\16\0@\0@\0?\0\6\0\0\0\4\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0\20\3\0\0\0\0\0\0\20\3\0\0\0\0\0\0\10\0\0\0\0\0\0\0"..., 832) = 832
+[pid 25189] read(3, "#\n# OpenSSL example configuration file.\n# See doc/man5/config.pod for more info.\n#\n# This is mostly being used for gener"..., 4096) = 4096
+[pid 25189] read(3, "d attributes must be the same, and the optional\n# and supplied fields are just that :-)\npolicy\t\t= policy_match\n\n# For th"..., 4096) = 4096
+[pid 25189] read(3, "coding of an extension: beware experts only!\n# obj=DER:02:03\n# Where 'obj' is a standard or added object\n# You can even "..., 4096) = 4096
+[pid 25189] read(3, " = $insta::certout # insta.cert.pem\n", 4096) = 36
+[pid 25189] read(3, "", 4096)           = 0
+[pid 25189] read(4, "Ubuntu 6.8.0-48.48-generic 6.8.12\n", 255) = 34
+[pid 25189] write(6, "*", 1)            = 1
+strace: Process 25191 attached
+strace: Process 25192 attached
+strace: Process 25193 attached
+strace: Process 25194 attached
+strace: Process 25195 attached
+[pid 25189] read(20, "0::/user.slice/user-0.slice/session-211.scope\n", 1023) = 46
+[pid 25189] read(20, "max\n", 31)       = 4
+[pid 25189] read(20, "max\n", 31)       = 4
+[pid 25189] read(20, "MemTotal:        4010012 kB\nMemFree:          324476 kB\nMemAvailable:    3218116 kB\nBuffers:           81860 kB\nCached: "..., 4095) = 1531
+[pid 25189] read(20, "00400000-00e38000 r--p 00000000 fd:01 5581                               /usr/local/bin/node\n00e38000-00e3b000 r-xp 00a3"..., 1024) = 1024
+[pid 25189] read(20, "01000-725a70c01000 rw-p 00000000 00:00 0 \n725a70e00000-725a70e01000 ---p 00000000 00:00 0 \n725a70e01000-725a71601000 rw-"..., 1024) = 1024
+[pid 25189] read(20, "\n725a72e8c000-725a72e8f000 rw-s 00000000 00:0f 84177                      anon_inode:[io_uring]\n725a72e8f000-725a72e9300"..., 1024) = 1024
+[pid 25189] read(20, "gnu/libstdc++.so.6.0.33\n725a7309d000-725a731e5000 r-xp 0009d000 fd:01 1580                       /usr/lib/x86_64-linux-g"..., 1024) = 1024
+[pid 25189] read(20, "bpthread.so.0\n725a7328a000-725a7328b000 r--p 00002000 fd:01 26761                      /usr/lib/x86_64-linux-gnu/libpthr"..., 1024) = 1024
+[pid 25189] read(20, "so.2\n725a732bc000-725a732bd000 r--p 00002000 fd:01 26640                      /usr/lib/x86_64-linux-gnu/libdl.so.2\n725a7"..., 1024) = 1024
+[pid 25189] read(20, "        /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2\n7ffe48b36000-7ffe48b57000 rw-p 00000000 00:00 0                  "..., 1024) = 380
+[pid 25189] read(20, "00400000-00e38000 r--p 00000000 fd:01 5581                               /usr/local/bin/node\n00e38000-00e3b000 r-xp 00a3"..., 1024) = 1024
+strace: Process 25196 attached
+[pid 25189] read(20, "#!/usr/bin/env node\n// Unified entry point for the Codex CLI.\n\nimport { spawn } from \"node:child_process\";\nimport { exis"..., 9154) = 9154
+[pid 25189] read(5, "*", 1)             = 1
+[pid 25189] write(6, "*", 1)            = 1
+[pid 25192] +++ exited with 0 +++
+[pid 25196] +++ exited with 0 +++
+[pid 25195] +++ exited with 0 +++
+[pid 25194] +++ exited with 0 +++
+[pid 25193] +++ exited with 0 +++
+[pid 25191] +++ exited with 0 +++
+[pid 25189] read(3, "0", 1)             = 1
+[pid 25189] read(3, "always [madvise] never\n", 24) = 23
+[pid 25189] read(3, "", 1)              = 0
+[pid 25189] read(3, "{\n  \"layoutVersion\": 1,\n  \"version\": \"0.166.0\",\n  \"target\": \"x86_64-unknown-linux-musl\",\n  \"variant\": \"codex\",\n  \"entryp"..., 205) = 205
+[pid 25189] read(3, "", 32)             = 0
+strace: Process 25197 attached
+[pid 25197] read(4, "0::/user.slice/user-0.slice/session-211.scope\n", 128) = 46
+[pid 25197] read(4, "", 82)             = 0
+[pid 25197] read(4, "max 100000\n", 32) = 11
+[pid 25197] read(4, "", 9)              = 0
+[pid 25197] read(4, "max 100000\n", 32) = 11
+[pid 25197] read(4, "", 9)              = 0
+[pid 25197] read(4, "max 100000\n", 32) = 11
+[pid 25197] read(4, "", 9)              = 0
+strace: Process 25198 attached
+strace: Process 25199 attached
+[pid 25197] connect(10, {sa_family=AF_UNIX, sun_path="/run/codex/app.sock"}, 22) = 0
+strace: Process 25200 attached
+[pid 25200] read(0, strace: Process 25187 detached
+
+Session terminated, killing shell...strace: Process 25189 detached
+strace: Process 25197 detached
+strace: Process 25198 detached
+strace: Process 25200 detached
+ <detached ...>
+strace: Process 25199 detached
+ ...killed.

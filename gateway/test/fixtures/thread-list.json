@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "thread/list",
+    "params": {
+      "cwd": "/srv/projects/demo",
+      "sourceKinds": ["appServer", "vscode"]
+    }
+  },
+  "response": {
+    "id": 1,
+    "result": {
+      "data": [
+        {
+          "id": "thr_recorded",
+          "cwd": "/srv/projects/demo",
+          "name": "录制会话"
+        }
+      ]
+    }
+  }
+}
