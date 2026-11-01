@@ -1,24 +1,19 @@
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import {
   api,
   apiUrl,
   STATUS_LABEL,
   type Approval,
   type Project,
+  type RecentThread,
   type Task,
-  type ThreadSummary,
   type TimelineItem,
+  type TimelineView,
 } from "./api";
 
 type Phase = "loading" | "login" | "work";
 
-const KIND_LABEL: Record<string, string> = {
-  userMessage: "你说的",
-  agentMessage: "助手",
-  commandExecution: "命令",
-  fileChange: "文件变更",
-  reasoning: "思考",
-};
+const CHECK_KINDS = new Set(["commandExecution", "fileChange", "reasoning"]);
 
 function Mark() {
   return (
@@ -51,6 +46,61 @@ function pieces(text: string, query: string): { text: string; hit: boolean }[] {
   return parts.length > 0 ? parts : [{ text, hit: false }];
 }
 
+type Block = { kind: "user" | "agent" | "checks"; items: TimelineItem[] };
+type Turn = { id: string; user: TimelineItem | null; rest: Block[] };
+
+function blocks(items: TimelineItem[]): Block[] {
+  const result: Block[] = [];
+  for (const item of items) {
+    if (item.kind === "userMessage") result.push({ kind: "user", items: [item] });
+    else if (CHECK_KINDS.has(item.kind)) {
+      const last = result.at(-1);
+      if (last?.kind === "checks") last.items.push(item);
+      else result.push({ kind: "checks", items: [item] });
+    } else result.push({ kind: "agent", items: [item] });
+  }
+  return result;
+}
+
+function groupTurns(parts: Block[]): Turn[] {
+  const turns: Turn[] = [];
+  for (const part of parts) {
+    if (part.kind === "user" || turns.length === 0) {
+      turns.push({
+        id: part.items[0].id,
+        user: part.kind === "user" ? part.items[0] : null,
+        rest: part.kind === "user" ? [] : [part],
+      });
+      continue;
+    }
+    turns.at(-1)?.rest.push(part);
+  }
+  return turns;
+}
+
+function spent(task: Task, now: number): string {
+  if (!task?.created_at) return "";
+  const running = task.status === "running" || task.status === "waiting_approval";
+  const end = running ? now : (task.updated_at ?? now);
+  return `${Math.max(0, Math.round((end - task.created_at) / 1000))}s`;
+}
+
+function Highlight({ id, text, query }: { id: string; text: string; query: string }) {
+  return (
+    <>
+      {pieces(text, query).map((part, index) =>
+        part.hit ? (
+          <mark className="find-hit" key={`${id}-${index}`}>
+            {part.text}
+          </mark>
+        ) : (
+          <span key={`${id}-${index}`}>{part.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 export function App() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [password, setPassword] = useState("");
@@ -59,18 +109,24 @@ export function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState<number | null>(null);
   const [projectGit, setProjectGit] = useState(false);
-  const [threads, setThreads] = useState<ThreadSummary[]>([]);
+  const [threads, setThreads] = useState<RecentThread[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [items, setItems] = useState<TimelineItem[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [queue, setQueue] = useState<string[]>([]);
   const [task, setTask] = useState<Task>(null);
+  const [older, setOlder] = useState(false);
   const [draft, setDraft] = useState("");
   const [directory, setDirectory] = useState<"worktree" | "local">("worktree");
   const [projectName, setProjectName] = useState("");
   const [projectPath, setProjectPath] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [plusOpen, setPlusOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [openChecks, setOpenChecks] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [findText, setFindText] = useState("");
   const [showArchived, setShowArchived] = useState(false);
@@ -82,69 +138,38 @@ export function App() {
   const [gitMessage, setGitMessage] = useState("");
   const [gitError, setGitError] = useState("");
   const [gitUrl, setGitUrl] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+  const sending = useRef(false);
+  const transcriptRef = useRef<HTMLElement>(null);
+  const followLatest = useRef(true);
+  const preserveScroll = useRef<number | null>(null);
+  const scrolling = useRef(false);
 
-  function applyView(view: { items: TimelineItem[]; approvals: Approval[]; task: Task; queue?: string[] }) {
+  function applyView(view: TimelineView) {
     setItems(view.items);
     setApprovals(view.approvals);
     setTask(view.task);
     setQueue(view.queue ?? []);
-  }
-
-  async function loadWorkspace(nextProject = projectId, nextThread = threadId, archived = showArchived) {
-    const [account, projectList] = await Promise.all([api.account(), api.projects()]);
-    setLoggedIn(account.loggedIn);
-    setProjects(projectList.projects);
-    if (account.loggedIn) {
-      const listed = await api.models().catch(() => ({ models: [] }));
-      setModels(listed.models);
-    } else {
-      setModels([]);
-    }
-    const project = projectList.projects.find((item) => item.id === nextProject) ?? projectList.projects[0] ?? null;
-    setProjectId(project?.id ?? null);
-    if (!project) {
-      setThreads([]);
-      setThreadId(null);
-      setItems([]);
-      setApprovals([]);
-      setTask(null);
-      setQueue([]);
-      return;
-    }
-    const threadList = await api.threads(project.id, archived);
-    setProjectGit(threadList.git);
-    setThreads(threadList.threads);
-    if (drafting && nextThread === null) {
-      setThreadId(null);
-      setItems([]);
-      setApprovals([]);
-      setTask(null);
-      setQueue([]);
-      return;
-    }
-    const thread = threadList.threads.find((item) => item.id === nextThread) ?? threadList.threads[0] ?? null;
-    setThreadId(thread?.id ?? null);
-    if (!thread) {
-      setItems([]);
-      setApprovals([]);
-      setTask(null);
-      setQueue([]);
-      return;
-    }
-    applyView(await api.timeline(thread.id));
+    setOlder(Boolean(view.older));
   }
 
   useEffect(() => {
     const fixture = import.meta.env.DEV && new URLSearchParams(window.location.search).get("fixture") === "1";
     const open = fixture ? api.login("secret") : Promise.resolve();
     open
-      .then(() => api.projects())
-      .then(() => {
+      .then(() => Promise.all([api.account(), api.projects(), api.syncRecent()]))
+      .then(async ([account, projectList]) => {
+        setLoggedIn(account.loggedIn);
+        setProjects(projectList.projects);
         setPhase("work");
-        return loadWorkspace();
+        const listed = await api.recent();
+        setThreads(listed.threads);
+        const thread = listed.threads[0] ?? null;
+        setProjectId(thread?.projectId ?? projectList.projects[0]?.id ?? null);
+        setThreadId(thread?.id ?? null);
+        if (thread) applyView(await api.timeline(thread.id));
       })
       .catch(() => setPhase("login"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -156,7 +181,7 @@ export function App() {
           | { type: "delta"; itemId: string; kind: string; text: string }
           | { type: "item"; item: TimelineItem }
           | { type: "status"; approvals: Approval[]; task: Task; queue?: string[] }
-          | { items: TimelineItem[]; approvals: Approval[]; task: Task; queue?: string[] };
+          | TimelineView;
         if ("type" in body && body.type === "delta") {
           setItems((current) => {
             const index = current.findIndex((item) => item.id === body.itemId);
@@ -185,31 +210,55 @@ export function App() {
         }
         applyView(body);
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : "时间线刷新失败");
+        setError(reason instanceof Error ? reason.message : "对话刷新失败");
       }
     };
     return () => source.close();
   }, [threadId, phase]);
 
   useEffect(() => {
-    if (!projectId || phase !== "work") return;
-    const source = new EventSource(apiUrl(`/api/projects/${projectId}/events`));
+    if (phase !== "work") return;
+    const source = new EventSource(apiUrl("/api/threads/recent/events"));
     source.onmessage = (event) => {
       if (showArchived) return;
-      const body = JSON.parse(event.data) as { threads: ThreadSummary[]; git: boolean };
+      const body = JSON.parse(event.data) as { threads: RecentThread[] };
       setThreads(body.threads);
-      setProjectGit(body.git);
     };
     return () => source.close();
-  }, [projectId, phase, showArchived]);
+  }, [phase, showArchived]);
+
+  useEffect(() => {
+    if (task?.status !== "running" && task?.status !== "waiting_approval") return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [task?.status, task?.turn_id]);
+
+  useLayoutEffect(() => {
+    const node = transcriptRef.current;
+    if (!node) return;
+    if (preserveScroll.current != null) {
+      scrolling.current = true;
+      node.scrollTop = node.scrollHeight - preserveScroll.current;
+      preserveScroll.current = null;
+      scrolling.current = false;
+      return;
+    }
+    if (!followLatest.current) return;
+    scrolling.current = true;
+    node.scrollTop = node.scrollHeight;
+    scrolling.current = false;
+  }, [items, approvals, queue, threadId]);
 
   async function onLogin(event: FormEvent) {
     event.preventDefault();
     setError("");
     try {
       await api.login(password);
+      const [account, projectList] = await Promise.all([api.account(), api.projects(), api.syncRecent()]);
+      setLoggedIn(account.loggedIn);
+      setProjects(projectList.projects);
       setPhase("work");
-      await loadWorkspace();
+      setThreads((await api.recent()).threads);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "登录失败");
     }
@@ -221,57 +270,84 @@ export function App() {
     setPassword("");
   }
 
-  async function chooseProject(id: number) {
-    setMenuOpen(false);
-    setDrafting(false);
-    setError("");
+  async function refreshRecent(archived = showArchived) {
+    setThreads((await api.recent(archived)).threads);
+  }
+
+  function openPlus() {
+    setPlusOpen(true);
+    setMenuOpen(true);
+  }
+
+  async function pickProject(id: number) {
     setProjectId(id);
-    const threadList = await api.threads(id, showArchived);
-    setProjectGit(threadList.git);
-    setThreads(threadList.threads);
-    const thread = threadList.threads[0] ?? null;
-    setThreadId(thread?.id ?? null);
-    if (!thread) {
-      setItems([]);
-      setApprovals([]);
-      setTask(null);
-      setQueue([]);
-      return;
-    }
-    applyView(await api.timeline(thread.id));
+    setDirectory("worktree");
+    const git = await api.projectGit(id);
+    setProjectGit(git.git);
   }
 
-  async function chooseThread(id: string) {
+  function beginDraft() {
+    const nextProject = projectId ?? projects[0]?.id ?? null;
+    if (!nextProject) return;
+    setProjectId(nextProject);
+    setPlusOpen(false);
     setMenuOpen(false);
-    setDrafting(false);
-    setThreadId(id);
-    applyView(await api.timeline(id));
-  }
-
-  function startFresh() {
-    setMenuOpen(false);
+    setMenuFor(null);
     setError("");
     setDrafting(true);
-    setDirectory("worktree");
     setThreadId(null);
     setItems([]);
     setApprovals([]);
     setTask(null);
     setQueue([]);
+    setOlder(false);
     setGitDiff("");
     setGitError("");
     setGitUrl("");
+    setReviewOpen(false);
+    setSettingsOpen(false);
   }
 
-  async function onDeleteThread(id: string, status: string | null | undefined) {
-    if (!projectId || !canDelete(status)) return;
+  async function chooseThread(item: RecentThread) {
+    setMenuOpen(false);
+    setPlusOpen(false);
+    setMenuFor(null);
+    setDrafting(false);
+    setReviewOpen(false);
+    setSettingsOpen(false);
+    followLatest.current = true;
+    setProjectId(item.projectId);
+    setThreadId(item.id);
+    applyView(await api.timeline(item.id));
+  }
+
+  async function loadOlder() {
+    const earliest = items[0];
+    const node = transcriptRef.current;
+    if (!threadId || !earliest || !node) return;
+    preserveScroll.current = node.scrollHeight - node.scrollTop;
+    followLatest.current = false;
+    const view = await api.timeline(threadId, earliest.id);
+    setItems((current) => [...view.items, ...current]);
+    setOlder(Boolean(view.older));
+  }
+
+  function onTranscriptScroll() {
+    if (scrolling.current) return;
+    const node = transcriptRef.current;
+    if (!node) return;
+    followLatest.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
+  }
+
+  async function onDeleteThread(item: RecentThread) {
+    if (!canDelete(item.status)) return;
     if (!window.confirm("删除这条会话？对话记录会从服务器上去掉。")) return;
     setError("");
     try {
-      await api.deleteThread(projectId, id);
-      if (threadId === id) startFresh();
-      const threadList = await api.threads(projectId, showArchived);
-      setThreads(threadList.threads);
+      await api.deleteThread(item.projectId, item.id);
+      if (threadId === item.id) beginDraft();
+      setMenuFor(null);
+      await refreshRecent();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "没有删除");
     }
@@ -284,31 +360,45 @@ export function App() {
       const created = await api.addProject(projectName, projectPath);
       setProjectName("");
       setProjectPath("");
-      setDrafting(false);
-      await loadWorkspace(created.project.id, null);
+      const projectList = await api.projects();
+      setProjects(projectList.projects);
+      setProjectId(created.project.id);
+      const git = await api.projectGit(created.project.id);
+      setProjectGit(git.git);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "项目没有登记");
     }
   }
 
   async function sendDraft() {
-    if (!projectId || draft.trim() === "") return;
+    if (sending.current || !projectId || draft.trim() === "") return;
+    const text = draft.trim();
+    sending.current = true;
+    followLatest.current = true;
     setBusy(true);
     setError("");
     try {
-      const created = await api.startTurn(projectId, draft.trim(), drafting ? undefined : (threadId ?? undefined), drafting ? (projectGit ? directory : "local") : undefined);
+      const created = await api.startTurn(
+        projectId,
+        text,
+        drafting || !threadId ? undefined : threadId,
+        drafting || !threadId ? (projectGit ? directory : "local") : undefined,
+      );
       setDraft("");
-      setDrafting(false);
       if (created.queued) {
-        const view = await api.timeline(created.threadId);
-        applyView(view);
+        setQueue((current) => [...current, text]);
         return;
       }
-      await loadWorkspace(projectId, created.threadId);
+      setDrafting(false);
+      setThreadId(created.threadId);
+      const listed = await api.recent(showArchived);
+      setThreads(listed.threads);
+      const mine = listed.threads.find((item) => item.id === created.threadId);
+      if (mine) setProjectId(mine.projectId);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "没有开始");
-      await loadWorkspace(projectId, threadId);
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   }
@@ -317,11 +407,6 @@ export function App() {
     if (!threadId) return;
     setError("");
     await api.interrupt(threadId);
-    applyView(await api.timeline(threadId));
-    if (projectId) {
-      const threadList = await api.threads(projectId, showArchived);
-      setThreads(threadList.threads);
-    }
   }
 
   function onDraftKey(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -334,38 +419,57 @@ export function App() {
   async function onDecision(approvalId: string, decision: "accept" | "decline" | "acceptForSession") {
     setError("");
     await api.approve(approvalId, decision);
-    if (threadId) applyView(await api.timeline(threadId));
   }
 
-  async function onRename() {
-    if (!projectId || !threadId) return;
-    const name = window.prompt("短标题", thread?.title ?? "");
+  async function onRename(item: RecentThread) {
+    const name = window.prompt("短标题", item.title);
     if (!name) return;
-    await api.renameThread(projectId, threadId, name);
-    const threadList = await api.threads(projectId, showArchived);
-    setThreads(threadList.threads);
+    await api.renameThread(item.projectId, item.id, name);
+    setMenuFor(null);
+    await refreshRecent();
   }
 
-  async function onArchive() {
-    if (!projectId || !threadId) return;
-    await api.archiveThread(projectId, threadId);
-    startFresh();
-    const threadList = await api.threads(projectId, showArchived);
-    setThreads(threadList.threads);
+  async function onArchive(item: RecentThread) {
+    await api.archiveThread(item.projectId, item.id);
+    setMenuFor(null);
+    if (threadId === item.id) {
+      setThreadId(null);
+      setItems([]);
+      setDrafting(true);
+    }
+    await refreshRecent();
   }
 
-  async function onUnarchive(id: string) {
-    if (!projectId) return;
-    await api.unarchiveThread(projectId, id);
-    const threadList = await api.threads(projectId, true);
-    setThreads(threadList.threads);
+  async function onUnarchive(item: RecentThread) {
+    await api.unarchiveThread(item.projectId, item.id);
+    setMenuFor(null);
+    await refreshRecent(true);
   }
 
-  async function onFork() {
-    if (!projectId || !threadId) return;
-    const created = await api.forkThread(projectId, threadId);
+  async function onFork(item: RecentThread) {
+    const created = await api.forkThread(item.projectId, item.id);
+    setMenuFor(null);
     setDrafting(false);
-    await loadWorkspace(projectId, created.threadId);
+    setProjectId(item.projectId);
+    setThreadId(created.threadId);
+    applyView(await api.timeline(created.threadId));
+    await refreshRecent();
+  }
+
+  async function openSettings() {
+    setReviewOpen(false);
+    setSettingsOpen(true);
+    if (!loggedIn || models.length > 0) return;
+    const listed = await api.models().catch(() => ({ models: [] }));
+    setModels(listed.models);
+  }
+
+  async function openReview() {
+    if (!projectId) return;
+    const git = await api.projectGit(projectId);
+    setProjectGit(git.git);
+    setSettingsOpen(false);
+    setReviewOpen(true);
   }
 
   async function onSettings(next: { model?: string; sandbox?: string; approvalPolicy?: string }) {
@@ -395,6 +499,13 @@ export function App() {
     if (result.diff !== undefined) setGitDiff(result.diff);
     if (result.error) setGitError(result.error);
     if (result.url) setGitUrl(result.url);
+  }
+
+  async function toggleArchived() {
+    const next = !showArchived;
+    setShowArchived(next);
+    setPlusOpen(false);
+    await refreshRecent(next);
   }
 
   if (phase === "loading") {
@@ -461,11 +572,12 @@ export function App() {
     );
   }
 
-  const project = projects.find((item) => item.id === projectId) ?? null;
   const thread = threads.find((item) => item.id === threadId) ?? null;
-  const status = task ? STATUS_LABEL[task.status] ?? task.status : "还没有任务";
+  const status = task ? STATUS_LABEL[task.status] ?? task.status : "";
   const canStop = task?.status === "running" || task?.status === "waiting_approval";
   const visibleItems = items.filter((item) => item.text.trim() !== "" || item.command);
+  const turns = groupTurns(blocks(visibleItems));
+  const elapsed = spent(task, now);
 
   return (
     <div className="app">
@@ -474,61 +586,99 @@ export function App() {
           <Mark />
           <span>Codex Web</span>
         </div>
-        <label className="field">
-          <span className="group-label">项目</span>
-          <select className="input" aria-label="当前项目" value={projectId ?? ""} onChange={(event) => void chooseProject(Number(event.target.value))}>
-            {projects.length === 0 ? <option value="">还没有项目</option> : null}
-            {projects.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button className="btn" type="button" onClick={startFresh}>
-          新建会话
+        <button className="btn" type="button" onClick={openPlus}>
+          新聊天
         </button>
-        <button className="btn ghost" type="button" onClick={() => void loadWorkspace(projectId, threadId, !showArchived).then(() => setShowArchived((value) => !value))}>
-          {showArchived ? "回到会话" : "已归档"}
-        </button>
-        <div className="thread-list">
-          {threads.length === 0 ? <p className="empty">这个项目还没有会话</p> : null}
+        <p className="group-label">{showArchived ? "已归档" : "最近"}</p>
+        <div className="thread-list recent-list">
+          {threads.length === 0 ? <p className="empty">还没有会话</p> : null}
           {threads.map((item) => (
             <div key={item.id} className="nav-row">
-              <button className="nav-item" type="button" aria-current={item.id === threadId ? "page" : undefined} onClick={() => void chooseThread(item.id)}>
+              <button className="nav-item recent-row" type="button" aria-current={item.id === threadId && !drafting ? "page" : undefined} onClick={() => void chooseThread(item)}>
                 <span className="nav-copy">
                   <span className="nav-title">{item.title}</span>
-                  <small>
-                    {item.status === "running" ? "执行中" : item.status === "waiting_approval" ? "待审批" : item.pending ? "待审批" : ""}
-                    {item.pending ? ` ${item.pending}` : ""}
+                  <small className="recent-project">
+                    {item.projectName}
+                    {item.status === "running"
+                      ? " · 执行中"
+                      : item.status === "waiting_approval"
+                        ? " · 待审批"
+                        : item.status === "interrupted"
+                          ? " · 已停止"
+                          : item.pending
+                            ? " · 待审批"
+                            : ""}
                   </small>
                 </span>
               </button>
-              {showArchived ? (
-                <button className="nav-delete" type="button" onClick={() => void onUnarchive(item.id)}>
-                  恢复
-                </button>
-              ) : (
-                <button
-                  className="nav-delete"
-                  type="button"
-                  aria-label={`删除会话 ${item.id}`}
-                  disabled={!canDelete(item.status)}
-                  onClick={() => void onDeleteThread(item.id, item.status)}
-                >
-                  删除
-                </button>
-              )}
+              <button className="nav-delete" type="button" aria-label={`会话菜单 ${item.title}`} onClick={() => setMenuFor((current) => (current === item.id ? null : item.id))}>
+                ···
+              </button>
+              {menuFor === item.id ? (
+                <div className="thread-menu" role="menu">
+                  {showArchived ? (
+                    <button className="btn" type="button" onClick={() => void onUnarchive(item)}>
+                      恢复
+                    </button>
+                  ) : (
+                    <>
+                      <button className="btn" type="button" onClick={() => void onRename(item)}>
+                        改名
+                      </button>
+                      <button className="btn" type="button" onClick={() => void onArchive(item)}>
+                        归档
+                      </button>
+                      <button className="btn" type="button" onClick={() => void onFork(item)}>
+                        分叉
+                      </button>
+                      <button className="nav-delete" type="button" aria-label={`删除会话 ${item.id}`} disabled={!canDelete(item.status)} onClick={() => void onDeleteThread(item)}>
+                        删除
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
-        <form className="sidebar-form sidebar-corner" onSubmit={onAddProject}>
-          <input className="input" aria-label="项目名称" placeholder="项目名称" value={projectName} onChange={(event) => setProjectName(event.target.value)} />
-          <input className="input" aria-label="项目路径" placeholder="服务器上的路径" value={projectPath} onChange={(event) => setProjectPath(event.target.value)} />
-          <button className="btn" type="submit">
-            登记项目
-          </button>
-        </form>
+        {plusOpen ? (
+          <div className="plus-panel" role="dialog" aria-label="新聊天">
+            {projects.map((item) => (
+              <button className={item.id === projectId ? "btn primary" : "btn"} key={item.id} type="button" onClick={() => void pickProject(item.id)}>
+                {item.name}
+              </button>
+            ))}
+            {projectGit ? (
+              <fieldset className="directory-choice">
+                <legend>新会话写到哪里</legend>
+                <label>
+                  <input type="radio" name="directory" checked={directory === "worktree"} onChange={() => setDirectory("worktree")} />
+                  单独 worktree
+                </label>
+                <label>
+                  <input type="radio" name="directory" checked={directory === "local"} onChange={() => setDirectory("local")} />
+                  直接改这个目录
+                </label>
+              </fieldset>
+            ) : null}
+            <button className="btn primary" type="button" onClick={beginDraft} disabled={projects.length === 0}>
+              开始
+            </button>
+            <form className="sidebar-form" onSubmit={onAddProject}>
+              <input className="input" aria-label="项目名称" placeholder="项目名称" value={projectName} onChange={(event) => setProjectName(event.target.value)} />
+              <input className="input" aria-label="项目路径" placeholder="服务器上的路径" value={projectPath} onChange={(event) => setProjectPath(event.target.value)} />
+              <button className="btn" type="submit">
+                登记项目
+              </button>
+            </form>
+            <button className="btn ghost" type="button" onClick={() => void toggleArchived()}>
+              {showArchived ? "回到最近" : "已归档"}
+            </button>
+          </div>
+        ) : null}
+        <button className="btn sidebar-corner" type="button" aria-label="添加" onClick={openPlus}>
+          +
+        </button>
       </aside>
       <div className="frame">
         <header className="topbar">
@@ -537,7 +687,7 @@ export function App() {
           </button>
           <div className="brand">
             <Mark />
-            <span>{project?.name ?? "工作区"}</span>
+            <span>{thread && !drafting ? thread.projectName : "对话"}</span>
           </div>
           <div className="topbar-actions">
             <span className={loggedIn ? "pill pos" : "pill warn"}>{loggedIn ? "Codex 已登录" : "Codex 未登录"}</span>
@@ -549,78 +699,66 @@ export function App() {
         <main className="sheet chat-sheet">
           <div className="title-row">
             <div>
-              <h1>{drafting ? "新会话" : thread?.title ?? "新会话"}</h1>
-              <p className="sub">{thread && !drafting ? status : "发送第一句后会出现在左侧"}</p>
+              <h1>{drafting || !thread ? "新会话" : thread.title}</h1>
+              {status && !drafting ? <p className="sub">{status}</p> : null}
             </div>
-            {thread && !drafting ? (
-              <div className="topbar-actions">
-                <button className="btn" type="button" onClick={() => void onRename()}>
-                  改名
-                </button>
-                <button className="btn" type="button" onClick={() => void onArchive()}>
-                  归档
-                </button>
-                <button className="btn" type="button" onClick={() => void onFork()}>
-                  分叉
-                </button>
-              </div>
-            ) : null}
           </div>
           {!loggedIn ? <p className="notice">Codex 未登录。可以查看已有项目，还不能开始新的任务。</p> : null}
           {error ? <p className="error-line">{error}</p> : null}
-          <div className="chat-tools">
-            <input className="input" aria-label="在对话中查找" placeholder="在这条对话里查找" value={findText} onChange={(event) => setFindText(event.target.value)} />
-            <label>
-              模型
-              <select aria-label="模型" disabled={!loggedIn || !threadId} value={model} onChange={(event) => void onSettings({ model: event.target.value })}>
-                <option value="">沿用当前</option>
-                {models.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              沙箱
-              <select aria-label="沙箱" disabled={!loggedIn || !threadId} value={sandbox} onChange={(event) => void onSettings({ sandbox: event.target.value })}>
-                <option value="">沿用当前</option>
-                <option value="read-only">只读</option>
-                <option value="workspace-write">工作区可写</option>
-                <option value="danger-full-access">完全访问</option>
-              </select>
-            </label>
-            <label>
-              审批
-              <select aria-label="审批策略" disabled={!loggedIn || !threadId} value={approvalPolicy} onChange={(event) => void onSettings({ approvalPolicy: event.target.value })}>
-                <option value="">沿用当前</option>
-                <option value="untrusted">每次询问</option>
-                <option value="on-request">按需询问</option>
-                <option value="never">不再询问</option>
-              </select>
-            </label>
-          </div>
-          <section className="transcript">
+          <section className="transcript" ref={transcriptRef} onScroll={onTranscriptScroll}>
             <div className="dialogue">
+              {older ? (
+                <button className="btn ghost" type="button" onClick={() => void loadOlder()}>
+                  继续查看
+                </button>
+              ) : null}
               {visibleItems.length === 0 ? <p className="empty">这条会话还没有对话</p> : null}
-              {visibleItems.map((item) => (
-                <article className={item.kind === "userMessage" ? "bubble mine" : "bubble"} key={item.id}>
-                  <span className="kind">{KIND_LABEL[item.kind] ?? item.kind}</span>
-                  {item.command ? <pre className="command-line">{item.command}</pre> : null}
-                  {item.text.trim() ? (
-                    <p>
-                      {pieces(item.text, findText).map((part, index) =>
-                        part.hit ? (
-                          <mark className="find-hit" key={`${item.id}-${index}`}>
-                            {part.text}
-                          </mark>
-                        ) : (
-                          <span key={`${item.id}-${index}`}>{part.text}</span>
-                        ),
-                      )}
-                    </p>
+              {turns.map((turn, index) => (
+                <section className="turn" key={turn.id}>
+                  {turn.user ? (
+                    <article className="bubble mine">
+                      <p>
+                        <Highlight id={turn.user.id} text={turn.user.text} query={findText} />
+                      </p>
+                    </article>
                   ) : null}
-                </article>
+                  {turn.rest.length > 0 || (index === turns.length - 1 && elapsed) ? (
+                    <div className="reply">
+                      {turn.rest.map((block) => {
+                        if (block.kind === "agent") {
+                          const item = block.items[0];
+                          return (
+                            <p className="prose" key={item.id}>
+                              <Highlight id={item.id} text={item.text} query={findText} />
+                            </p>
+                          );
+                        }
+                        const open = Boolean(openChecks[block.items[0].id]);
+                        return (
+                          <div className="checks" key={block.items[0].id}>
+                            <button
+                              className="btn ghost"
+                              type="button"
+                              aria-expanded={open}
+                              onClick={() => setOpenChecks((current) => ({ ...current, [block.items[0].id]: !open }))}
+                            >
+                              检查项 {block.items.length}
+                            </button>
+                            {open
+                              ? block.items.map((item) => (
+                                  <div key={item.id}>
+                                    {item.command ? <pre className="command-line">{item.command}</pre> : null}
+                                    {item.text.trim() ? <pre className="command-line">{item.text}</pre> : null}
+                                  </div>
+                                ))
+                              : null}
+                          </div>
+                        );
+                      })}
+                      {index === turns.length - 1 && elapsed ? <p className="reply-time">用时 {elapsed}</p> : null}
+                    </div>
+                  ) : null}
+                </section>
               ))}
               {approvals.map((approval) => {
                 let payload: { text?: string } = {};
@@ -631,7 +769,6 @@ export function App() {
                 }
                 return (
                   <article className="bubble approval-inline" key={approval.id}>
-                    <span className="kind">审批</span>
                     <p>{payload.text || approval.kind}</p>
                     <div className="row">
                       <button className="btn primary" type="button" onClick={() => void onDecision(approval.id, "accept")}>
@@ -649,11 +786,45 @@ export function App() {
               })}
             </div>
           </section>
-          {projectGit && thread && !drafting ? (
-            <section className="git-panel">
-              <header>
-                <h2>Git</h2>
-              </header>
+          {settingsOpen ? (
+            <div className="tool-layer" role="dialog" aria-label="自定义">
+              <input className="input" aria-label="在对话中查找" placeholder="在这条对话里查找" value={findText} onChange={(event) => setFindText(event.target.value)} />
+              <label>
+                模型
+                <select aria-label="模型" disabled={!loggedIn || !threadId} value={model} onChange={(event) => void onSettings({ model: event.target.value })}>
+                  <option value="">沿用当前</option>
+                  {models.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                沙箱
+                <select aria-label="沙箱" disabled={!loggedIn || !threadId} value={sandbox} onChange={(event) => void onSettings({ sandbox: event.target.value })}>
+                  <option value="">沿用当前</option>
+                  <option value="read-only">只读</option>
+                  <option value="workspace-write">工作区可写</option>
+                  <option value="danger-full-access">完全访问</option>
+                </select>
+              </label>
+              <label>
+                审批
+                <select aria-label="审批策略" disabled={!loggedIn || !threadId} value={approvalPolicy} onChange={(event) => void onSettings({ approvalPolicy: event.target.value })}>
+                  <option value="">沿用当前</option>
+                  <option value="untrusted">每次询问</option>
+                  <option value="on-request">按需询问</option>
+                  <option value="never">不再询问</option>
+                </select>
+              </label>
+              <button className="btn ghost" type="button" onClick={() => setSettingsOpen(false)}>
+                关闭
+              </button>
+            </div>
+          ) : null}
+          {reviewOpen ? (
+            <section className="tool-layer" aria-label="审查">
               <div className="row">
                 <button className="btn" type="button" onClick={() => void onGit("diff")}>
                   查看 diff
@@ -678,22 +849,12 @@ export function App() {
               {gitDiff ? <pre>{gitDiff}</pre> : null}
               {gitError ? <p className="error-line">{gitError}</p> : null}
               {gitUrl ? <p>{gitUrl}</p> : null}
+              <button className="btn ghost" type="button" onClick={() => setReviewOpen(false)}>
+                关闭
+              </button>
             </section>
           ) : null}
           {queue.length > 0 ? <p className="queue-note">已排队：{queue.join(" / ")}</p> : null}
-          {drafting && projectGit ? (
-            <fieldset className="directory-choice">
-              <legend>新会话写到哪里</legend>
-              <label>
-                <input type="radio" name="directory" checked={directory === "worktree"} onChange={() => setDirectory("worktree")} />
-                单独 worktree
-              </label>
-              <label>
-                <input type="radio" name="directory" checked={directory === "local"} onChange={() => setDirectory("local")} />
-                直接改这个目录
-              </label>
-            </fieldset>
-          ) : null}
           <form
             className="composer"
             onSubmit={(event) => {
@@ -701,16 +862,34 @@ export function App() {
               void sendDraft();
             }}
           >
-            <textarea aria-label="要发送的话" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onDraftKey} placeholder={loggedIn ? (thread && !drafting ? "接着这条会话说" : "写下第一句，开始新会话") : "Codex 未登录，发送会被拒绝"} />
-            {canStop && !drafting ? (
-              <button className="btn primary" type="button" onClick={() => void onStop()}>
-                停止
-              </button>
-            ) : (
-              <button className="btn primary" type="submit" disabled={busy || draft.trim() === ""}>
-                发送
-              </button>
-            )}
+            <textarea
+              aria-label="要发送的话"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={onDraftKey}
+              placeholder={loggedIn ? (thread && !drafting ? "接着这条会话说" : "写下第一句，开始新会话") : "Codex 未登录，发送会被拒绝"}
+            />
+            <div className="composer-actions">
+              {thread && !drafting ? (
+                <button className="btn ghost" type="button" onClick={() => void openReview()}>
+                  审查
+                </button>
+              ) : null}
+              {thread && !drafting ? (
+                <button className="btn ghost" type="button" onClick={() => void openSettings()}>
+                  自定义
+                </button>
+              ) : null}
+              {canStop && !drafting ? (
+                <button className="btn primary" type="button" onClick={() => void onStop()}>
+                  停止
+                </button>
+              ) : (
+                <button className="btn primary" type="submit" disabled={busy || draft.trim() === "" || !projectId}>
+                  发送
+                </button>
+              )}
+            </div>
           </form>
         </main>
       </div>

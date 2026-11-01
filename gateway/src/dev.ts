@@ -57,7 +57,14 @@ const config: AppConfig = {
 const db = openDatabase(dataDir);
 const runtime = new Runtime(db, engine, config);
 await runtime.start();
-runtime.addProject("示例项目", root);
+const example = runtime.addProject("示例项目", root);
 runtime.addProject("普通目录", plain);
+const seeded = await runtime.startTurn(example.id, "最早的一句", undefined, "local");
+engine.persisted.set(
+  seeded.threadId,
+  [{ id: "n0", kind: "userMessage", text: "最早的一句" }].concat(
+    Array.from({ length: 44 }, (_, index) => ({ id: `n${index + 1}`, kind: "userMessage", text: `后续 ${index + 1}` })),
+  ),
+);
 await startServer(config, runtime);
 console.log(`fixture gateway http://127.0.0.1:8787 loggedIn=${engine.loggedIn}`);

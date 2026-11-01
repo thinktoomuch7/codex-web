@@ -2,7 +2,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import type { AppConfig } from "./config.ts";
-import type { Runtime } from "./runtime.ts";
+import { windowItems, type Runtime } from "./runtime.ts";
 
 const COOKIE = "cw_session";
 
@@ -88,6 +88,47 @@ async function route(
     return;
   }
 
+  const projectGit = url.pathname.match(/^\/api\/projects\/(\d+)\/git$/);
+  if (request.method === "GET" && projectGit) {
+    runtime.assertBrowserAction("list-projects");
+    sendJson(response, 200, { git: await runtime.projectGit(Number(projectGit[1])) });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/threads/recent") {
+    runtime.assertBrowserAction("list-threads");
+    sendJson(response, 200, runtime.recentThreads(url.searchParams.get("archived") === "1"));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/threads/recent/sync") {
+    runtime.assertBrowserAction("list-threads");
+    sendJson(response, 200, await runtime.syncRecent());
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/threads/recent/events") {
+    runtime.assertBrowserAction("list-threads");
+    response.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    response.socket?.setNoDelay(true);
+    const push = () => {
+      if (response.writableEnded || response.destroyed) return;
+      response.write(`data: ${JSON.stringify(runtime.recentThreads())}\n\n`);
+    };
+    push();
+    const unsubscribe = runtime.subscribe((notice) => {
+      if (notice.scope !== "threads") return;
+      push();
+    });
+    request.on("close", () => unsubscribe());
+    return;
+  }
+
   const threads = url.pathname.match(/^\/api\/projects\/(\d+)\/threads$/);
   if (request.method === "GET" && threads) {
     runtime.assertBrowserAction("list-threads");
@@ -143,12 +184,10 @@ async function route(
   if (request.method === "GET" && timeline) {
     runtime.assertBrowserAction("read-timeline");
     const threadId = decodeURIComponent(timeline[1]);
-    const view = await runtime.timeline(threadId);
-    sendJson(response, 200, {
-      ...view,
-      approvals: runtime.pendingApprovals(threadId),
-      task: runtime.taskForThread(threadId) ?? null,
-    });
+    const before = url.searchParams.get("before") ?? undefined;
+    const cached = runtime.cachedTimeline(threadId);
+    if (!before || cached.items.length === 0) await runtime.timeline(threadId);
+    sendJson(response, 200, threadView(runtime, threadId, before));
     return;
   }
 
@@ -166,14 +205,7 @@ async function route(
     let ready = false;
     const write = () => {
       if (!ready || response.writableEnded || response.destroyed) return;
-      const view = runtime.cachedTimeline(threadId);
-      response.write(
-        `data: ${JSON.stringify({
-          ...view,
-          approvals: runtime.pendingApprovals(threadId),
-          task: runtime.taskForThread(threadId) ?? null,
-        })}\n\n`,
-      );
+      response.write(`data: ${JSON.stringify(threadView(runtime, threadId))}\n\n`);
     };
     response.on("error", (error) => {
       console.error(error);
@@ -326,6 +358,18 @@ function readJson(request: IncomingMessage): Promise<Record<string, unknown>> {
       }
     });
   });
+}
+
+function threadView(runtime: Runtime, threadId: string, before?: string) {
+  const view = runtime.cachedTimeline(threadId);
+  const windowed = windowItems(view.items, before);
+  return {
+    items: windowed.items,
+    older: windowed.older,
+    approvals: runtime.pendingApprovals(threadId),
+    task: runtime.taskForThread(threadId) ?? null,
+    queue: view.queue,
+  };
 }
 
 function sendJson(response: ServerResponse, status: number, body: unknown) {

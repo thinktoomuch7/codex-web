@@ -1,16 +1,18 @@
 export type Project = { id: number; name: string; path: string };
 export type ThreadSummary = {
   id: string;
-  cwd: string;
+  cwd?: string;
   title: string;
   status?: string | null;
   pending?: number;
   mode?: string;
   updatedAt?: number;
 };
+export type RecentThread = ThreadSummary & { projectId: number; projectName: string };
 export type TimelineItem = { id: string; kind: string; text: string; command?: string };
 export type Approval = { id: string; thread_id: string; turn_id: string; kind: string; payload: string };
-export type Task = { id: number; status: string; turn_id: string } | null;
+export type Task = { id: number; status: string; turn_id: string; created_at?: number; updated_at?: number } | null;
+export type TimelineView = { items: TimelineItem[]; approvals: Approval[]; task: Task; queue?: string[]; older?: boolean };
 
 export function apiUrl(pathname: string): string {
   const prefix = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -36,10 +38,13 @@ export const api = {
     send<{ project: Project }>("/api/projects", { method: "POST", body: JSON.stringify({ name, path }) }),
   threads: (projectId: number, archived = false) =>
     send<{ threads: ThreadSummary[]; git: boolean }>(`/api/projects/${projectId}/threads${archived ? "?archived=1" : ""}`),
+  recent: (archived = false) => send<{ threads: RecentThread[] }>(`/api/threads/recent${archived ? "?archived=1" : ""}`),
+  syncRecent: () => send<{ threads: RecentThread[] }>("/api/threads/recent/sync", { method: "POST", body: "{}" }),
+  projectGit: (projectId: number) => send<{ git: boolean }>(`/api/projects/${projectId}/git`),
   account: () => send<{ loggedIn: boolean }>("/api/account"),
-  timeline: (threadId: string) =>
-    send<{ items: TimelineItem[]; approvals: Approval[]; task: Task; queue?: string[] }>(
-      `/api/threads/${encodeURIComponent(threadId)}/timeline`,
+  timeline: (threadId: string, before?: string) =>
+    send<TimelineView>(
+      `/api/threads/${encodeURIComponent(threadId)}/timeline${before ? `?before=${encodeURIComponent(before)}` : ""}`,
     ),
   startTurn: (projectId: number, text: string, threadId?: string, directory?: "worktree" | "local") =>
     send<{ threadId: string; turnId: string; taskId: number; queued?: boolean }>(`/api/projects/${projectId}/threads`, {

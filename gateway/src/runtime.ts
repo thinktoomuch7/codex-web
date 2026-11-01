@@ -162,39 +162,34 @@ export class Runtime {
   async listThreads(projectId: number, archived = false) {
     const project = this.project(projectId);
     const git = await isGitRepo(project.path);
-    const places = this.db.prepare("SELECT * FROM thread_places WHERE project_id = ?").all(projectId) as Place[];
-    const byId = new Map<string, { id: string; cwd: string; title: string }>();
-    for (const thread of await this.engine.listThreads(project.path)) byId.set(thread.id, thread);
-    for (const place of places) {
-      if (place.mode !== "worktree") continue;
-      for (const thread of await this.engine.listThreads(place.cwd)) byId.set(thread.id, thread);
-    }
-    for (const thread of byId.values()) {
-      if (!places.some((place) => place.thread_id === thread.id)) this.insertPlace(thread.id, projectId, "local", thread.cwd, null);
-    }
-    const fresh = this.db.prepare("SELECT * FROM thread_places WHERE project_id = ?").all(projectId) as Place[];
-    for (const place of fresh) {
-      if (!byId.has(place.thread_id)) byId.set(place.thread_id, { id: place.thread_id, cwd: place.cwd, title: place.thread_id });
-    }
-    const threads = fresh
-      .filter((place) => (archived ? place.archived === 1 : place.archived === 0))
-      .map((place) => {
-        const thread = byId.get(place.thread_id);
-        const settings = this.settings(place.thread_id);
-        const task = this.taskForThread(place.thread_id);
-        const pending = this.pendingApprovals(place.thread_id).length;
-        return {
-          id: place.thread_id,
-          cwd: place.cwd,
-          title: settings?.title || thread?.title || place.thread_id,
-          status: task?.status ?? null,
-          pending,
-          mode: place.mode,
-          updatedAt: task ? this.taskUpdatedAt(place.thread_id) : place.created_at,
-        };
-      })
-      .sort((left, right) => right.updatedAt - left.updatedAt);
-    return { threads, git };
+    await this.absorbListed(projectId);
+    return { threads: this.placeThreads(projectId, archived), git };
+  }
+
+  recentThreads(archived = false) {
+    const threads = (this.db.prepare("SELECT id, name FROM projects").all() as { id: number; name: string }[]).flatMap((project) =>
+      this.placeThreads(project.id, archived).map((thread) => ({
+        id: thread.id,
+        title: thread.title,
+        status: thread.status,
+        pending: thread.pending,
+        mode: thread.mode,
+        updatedAt: thread.updatedAt,
+        projectId: project.id,
+        projectName: project.name,
+      })),
+    );
+    threads.sort((left, right) => right.updatedAt - left.updatedAt);
+    return { threads };
+  }
+
+  async syncRecent() {
+    for (const project of this.listProjects()) await this.absorbListed(project.id);
+    return this.recentThreads();
+  }
+
+  async projectGit(projectId: number): Promise<boolean> {
+    return isGitRepo(this.project(projectId).path);
   }
 
   async account() {
@@ -233,6 +228,7 @@ export class Runtime {
         this.db
           .prepare(`INSERT INTO thread_queue (thread_id, text, created_at) VALUES (?, ?, ?)`)
           .run(threadId, text, Date.now());
+        this.notify({ scope: "threads", threadId });
         return { threadId, turnId: busy.turn_id, taskId: busy.id, queued: true };
       }
       return this.beginTurn(projectId, threadId, text);
@@ -255,6 +251,7 @@ export class Runtime {
          VALUES (?, ?, ?, 'running', ?, ?)`,
       )
       .run(projectId, threadId, turn.turnId, now, now);
+    this.notify({ scope: "threads", threadId });
     return { threadId, turnId: turn.turnId, taskId: Number(inserted.lastInsertRowid) };
   }
 
@@ -428,8 +425,10 @@ export class Runtime {
   }
 
   taskForThread(threadId: string) {
-    return this.db.prepare("SELECT id, status, turn_id FROM tasks WHERE thread_id = ? ORDER BY id DESC LIMIT 1").get(threadId) as
-      | { id: number; status: TaskStatus; turn_id: string }
+    return this.db
+      .prepare("SELECT id, status, turn_id, created_at, updated_at FROM tasks WHERE thread_id = ? ORDER BY id DESC LIMIT 1")
+      .get(threadId) as
+      | { id: number; status: TaskStatus; turn_id: string; created_at: number; updated_at: number }
       | undefined;
   }
 
@@ -530,6 +529,48 @@ export class Runtime {
     await moveWorktree(repo, provisional, finalPath);
     await this.engine.relocate(threadId, finalPath);
     return finalPath;
+  }
+
+  private placeThreads(projectId: number, archived: boolean) {
+    const places = this.db.prepare("SELECT * FROM thread_places WHERE project_id = ?").all(projectId) as Place[];
+    return places
+      .filter((place) => (archived ? place.archived === 1 : place.archived === 0))
+      .map((place) => {
+        const settings = this.settings(place.thread_id);
+        const task = this.taskForThread(place.thread_id);
+        return {
+          id: place.thread_id,
+          cwd: place.cwd,
+          title: settings?.title || "新会话",
+          status: task?.status ?? null,
+          pending: this.pendingApprovals(place.thread_id).length,
+          mode: place.mode,
+          updatedAt: task ? this.taskUpdatedAt(place.thread_id) : place.created_at,
+        };
+      })
+      .sort((left, right) => right.updatedAt - left.updatedAt);
+  }
+
+  private async absorbListed(projectId: number): Promise<void> {
+    const project = this.project(projectId);
+    const known = new Set(
+      (this.db.prepare("SELECT thread_id FROM thread_places WHERE project_id = ?").all(projectId) as { thread_id: string }[]).map(
+        (place) => place.thread_id,
+      ),
+    );
+    const absorb = (thread: { id: string; cwd: string; title: string }) => {
+      if (!known.has(thread.id)) {
+        this.insertPlace(thread.id, projectId, "local", thread.cwd, null);
+        known.add(thread.id);
+      }
+      if (!this.settings(thread.id)?.title && thread.title) this.rememberTitle(thread.id, shortTitle(thread.title));
+    };
+    for (const thread of await this.engine.listThreads(project.path)) absorb(thread);
+    const places = this.db.prepare("SELECT * FROM thread_places WHERE project_id = ?").all(projectId) as Place[];
+    for (const place of places) {
+      if (place.mode !== "worktree") continue;
+      for (const thread of await this.engine.listThreads(place.cwd)) absorb(thread);
+    }
   }
 
   private insertPlace(threadId: string, projectId: number, mode: string, cwd: string, branch: string | null): void {
@@ -636,6 +677,17 @@ export class Runtime {
     if (!project) throw new Error("项目不存在");
     return project;
   }
+}
+
+export const TIMELINE_WINDOW = 40;
+
+export function windowItems(items: TimelineItem[], before?: string): { items: TimelineItem[]; older: boolean } {
+  let source = items;
+  if (before) {
+    const index = source.findIndex((item) => item.id === before);
+    source = index > 0 ? source.slice(0, index) : [];
+  }
+  return { items: source.slice(-TIMELINE_WINDOW), older: source.length > TIMELINE_WINDOW };
 }
 
 export function mergeTimeline(persisted: TimelineItem[], live: TimelineItem[]): TimelineItem[] {
