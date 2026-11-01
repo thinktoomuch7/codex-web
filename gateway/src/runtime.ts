@@ -7,6 +7,7 @@ import type { ApprovalDecision, CodexEngine, ThreadLaunch, TimelineItem } from "
 import { ALLOWED_BROWSER_ACTIONS } from "./codex/types.ts";
 import { addWorktree, assertWorktreeAllowed, isGitRepo, isInside, moveWorktree, redactSecrets, removeWorktree, runCommand, runGit, safeRelative } from "./git.ts";
 import { resolveProjectPath } from "./paths.ts";
+import { explainCodexError } from "./codex/turn-error.ts";
 import { shortTitle } from "./titles.ts";
 
 export type TaskStatus = "running" | "waiting_approval" | "completed" | "failed" | "interrupted";
@@ -79,13 +80,14 @@ export class Runtime {
       }
       if (event.type === "title") this.rememberTitle(event.threadId, event.title);
       if (event.type === "approval") this.onApproval(event);
+      if (event.type === "failure") this.rememberFailure(event.threadId, event.turnId, event.error);
       if (event.type === "turn") {
         const status = event.status === "interrupted" ? "interrupted" : event.status === "failed" ? "failed" : "completed";
-        this.db
-          .prepare(`UPDATE tasks SET status = ?, updated_at = ? WHERE thread_id = ? AND turn_id = ?`)
-          .run(status, Date.now(), event.threadId, event.turnId);
+        const threadId = event.threadId || this.threadForTurn(event.turnId);
+        const error = status === "failed" ? event.error || this.storedFailure(threadId, event.turnId) || "这一轮失败了。" : null;
+        this.finishTurn(threadId, event.turnId, status, error);
         if (status === "completed" || status === "failed") {
-          void this.enqueue(() => this.drainQueue(event.threadId));
+          void this.enqueue(() => this.drainQueue(threadId));
         }
       }
       if (event.type === "delta") {
@@ -243,7 +245,9 @@ export class Runtime {
     const place = this.requirePlace(projectId, threadId);
     const launch = this.launchFor(threadId);
     if (launch) await this.engine.applySettings(threadId, place.cwd, launch);
-    const turn = await this.engine.startTurn(threadId, text, place.cwd);
+    const turn = await this.engine.startTurn(threadId, text, place.cwd).catch((error: unknown) => {
+      throw new Error(explainCodexError(error instanceof Error ? { message: error.message } : error));
+    });
     const now = Date.now();
     const inserted = this.db
       .prepare(
@@ -426,9 +430,9 @@ export class Runtime {
 
   taskForThread(threadId: string) {
     return this.db
-      .prepare("SELECT id, status, turn_id, created_at, updated_at FROM tasks WHERE thread_id = ? ORDER BY id DESC LIMIT 1")
+      .prepare("SELECT id, status, turn_id, created_at, updated_at, error FROM tasks WHERE thread_id = ? ORDER BY id DESC LIMIT 1")
       .get(threadId) as
-      | { id: number; status: TaskStatus; turn_id: string; created_at: number; updated_at: number }
+      | { id: number; status: TaskStatus; turn_id: string; created_at: number; updated_at: number; error: string | null }
       | undefined;
   }
 
@@ -629,6 +633,56 @@ export class Runtime {
       return this.db.prepare("SELECT * FROM thread_places WHERE thread_id = ?").get(threadId) as Place;
     }
     throw new Error("会话不存在");
+  }
+
+  private finishTurn(threadId: string, turnId: string, status: TaskStatus, error: string | null): void {
+    const now = Date.now();
+    const matched = this.db
+      .prepare(`UPDATE tasks SET status = ?, error = ?, updated_at = ? WHERE thread_id = ? AND turn_id = ?`)
+      .run(status, error, now, threadId, turnId) as { changes?: number };
+    if ((matched.changes ?? 0) === 0 && turnId) {
+      this.db.prepare(`UPDATE tasks SET status = ?, error = ?, updated_at = ? WHERE turn_id = ?`).run(status, error, now, turnId);
+    }
+  }
+
+  private rememberFailure(threadId: string, turnId: string, error: string): void {
+    const message = redactSecrets(error).slice(0, 500) || "这一轮失败了。";
+    if (threadId && turnId) {
+      this.db.prepare(`UPDATE tasks SET error = ? WHERE thread_id = ? AND turn_id = ?`).run(message, threadId, turnId);
+      return;
+    }
+    if (turnId) {
+      this.db.prepare(`UPDATE tasks SET error = ? WHERE turn_id = ?`).run(message, turnId);
+      return;
+    }
+    if (threadId) {
+      this.db
+        .prepare(
+          `UPDATE tasks SET error = ? WHERE id = (
+             SELECT id FROM tasks WHERE thread_id = ? AND status IN ('running', 'waiting_approval') ORDER BY id DESC LIMIT 1
+           )`,
+        )
+        .run(message, threadId);
+      return;
+    }
+    const running = this.db.prepare(`SELECT id FROM tasks WHERE status IN ('running', 'waiting_approval')`).all() as { id: number }[];
+    if (running.length === 1) this.db.prepare(`UPDATE tasks SET error = ? WHERE id = ?`).run(message, running[0].id);
+  }
+
+  private storedFailure(threadId: string, turnId: string): string {
+    const row = (
+      threadId
+        ? this.db.prepare(`SELECT error FROM tasks WHERE thread_id = ? AND turn_id = ?`).get(threadId, turnId)
+        : this.db.prepare(`SELECT error FROM tasks WHERE turn_id = ?`).get(turnId)
+    ) as { error?: string | null } | undefined;
+    return row?.error ?? "";
+  }
+
+  private threadForTurn(turnId: string): string {
+    const row = this.db.prepare(`SELECT thread_id FROM tasks WHERE turn_id = ? ORDER BY id DESC LIMIT 1`).get(turnId) as
+      | { thread_id: string }
+      | undefined;
+    return row?.thread_id ?? "";
   }
 
   private activeTask(threadId: string): { id: number; turn_id: string } | undefined {

@@ -1,6 +1,7 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { ApprovalDecision, CodexEngine, EngineEvent, ThreadLaunch, ThreadSummary, TimelineItem } from "./types.ts";
 import { RpcClient, sendListThreads, type RpcTransport } from "./rpc.ts";
+import { readFailureNotice, readTurnCompletion } from "./turn-error.ts";
 
 type Handler = (event: EngineEvent) => void;
 
@@ -40,10 +41,10 @@ export class UnixCodexEngine implements CodexEngine {
       const threadId = typeof params.threadId === "string" ? params.threadId : "";
       if (!/delta/i.test(message.method)) console.error(`codex-event ${message.method}`);
       if (message.method === "turn/completed") {
-        const turn = params.turn as { id?: string; status?: string } | undefined;
-        const raw = turn?.status;
-        const status = raw === "failed" || raw === "interrupted" ? raw : "completed";
-        this.emit({ type: "turn", threadId, turnId: String(turn?.id ?? ""), status });
+        this.emit({ type: "turn", ...readTurnCompletion(params) });
+      }
+      if (message.method === "error") {
+        this.emit({ type: "failure", ...readFailureNotice(params) });
       }
       if (message.method === "item/completed" || message.method === "item/started") {
         const item = params.item as RawItem | undefined;

@@ -25,7 +25,8 @@ export type EngineEvent =
   | { type: "item"; threadId: string; item: TimelineItem }
   | { type: "delta"; threadId: string; itemId: string; kind: string; text: string }
   | { type: "approval"; threadId: string; turnId: string; approvalId: string; kind: string; text: string }
-  | { type: "turn"; threadId: string; turnId: string; status: "completed" | "failed" | "interrupted" }
+  | { type: "turn"; threadId: string; turnId: string; status: "completed" | "failed" | "interrupted"; error?: string }
+  | { type: "failure"; threadId: string; turnId: string; error: string }
   | { type: "title"; threadId: string; title: string };
 
 export interface CodexEngine {

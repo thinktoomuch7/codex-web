@@ -69,6 +69,8 @@ export function openDatabase(dataDir: string): DatabaseSync {
   mkdirSync(dataDir, { recursive: true });
   const db = new DatabaseSync(`${dataDir}/app.db`);
   db.exec(SCHEMA);
+  const taskColumns = db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[];
+  if (!taskColumns.some((column) => column.name === "error")) db.exec("ALTER TABLE tasks ADD COLUMN error TEXT");
   return db;
 }
 

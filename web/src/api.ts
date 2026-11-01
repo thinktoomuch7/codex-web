@@ -11,7 +11,7 @@ export type ThreadSummary = {
 export type RecentThread = ThreadSummary & { projectId: number; projectName: string };
 export type TimelineItem = { id: string; kind: string; text: string; command?: string };
 export type Approval = { id: string; thread_id: string; turn_id: string; kind: string; payload: string };
-export type Task = { id: number; status: string; turn_id: string; created_at?: number; updated_at?: number } | null;
+export type Task = { id: number; status: string; turn_id: string; created_at?: number; updated_at?: number; error?: string | null } | null;
 export type TimelineView = { items: TimelineItem[]; approvals: Approval[]; task: Task; queue?: string[]; older?: boolean };
 
 export function apiUrl(pathname: string): string {

@@ -574,6 +574,7 @@ export function App() {
 
   const thread = threads.find((item) => item.id === threadId) ?? null;
   const status = task ? STATUS_LABEL[task.status] ?? task.status : "";
+  const failure = error || task?.error || (task?.status === "failed" ? "这一轮失败了。" : "");
   const canStop = task?.status === "running" || task?.status === "waiting_approval";
   const visibleItems = items.filter((item) => item.text.trim() !== "" || item.command);
   const turns = groupTurns(blocks(visibleItems));
@@ -605,7 +606,9 @@ export function App() {
                         ? " · 待审批"
                         : item.status === "interrupted"
                           ? " · 已停止"
-                          : item.pending
+                          : item.status === "failed"
+                            ? " · 失败"
+                            : item.pending
                             ? " · 待审批"
                             : ""}
                   </small>
@@ -704,7 +707,6 @@ export function App() {
             </div>
           </div>
           {!loggedIn ? <p className="notice">Codex 未登录。可以查看已有项目，还不能开始新的任务。</p> : null}
-          {error ? <p className="error-line">{error}</p> : null}
           <section className="transcript" ref={transcriptRef} onScroll={onTranscriptScroll}>
             <div className="dialogue">
               {older ? (
@@ -853,6 +855,11 @@ export function App() {
                 关闭
               </button>
             </section>
+          ) : null}
+          {failure ? (
+            <p className="turn-error" role="alert">
+              {failure}
+            </p>
           ) : null}
           {queue.length > 0 ? <p className="queue-note">已排队：{queue.join(" / ")}</p> : null}
           <form

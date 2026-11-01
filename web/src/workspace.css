@@ -305,6 +305,16 @@
   color: var(--negative);
 }
 
+.turn-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--negative);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--negative) 12%, var(--surface));
+  color: var(--negative);
+  font-weight: 600;
+}
+
 .login-note {
   margin: 8px;
   color: var(--muted);
