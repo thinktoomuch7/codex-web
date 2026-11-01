@@ -41,7 +41,7 @@ describe("平台数据与登录", () => {
     const db = openDatabase(dir);
     const names = tableNames(db);
     db.close();
-    for (const name of ["users", "sessions", "projects", "tasks", "approvals"]) {
+    for (const name of ["users", "sessions", "projects", "tasks", "approvals", "thread_places", "thread_queue", "thread_grants", "thread_settings"]) {
       assert.ok(names.includes(name), name);
     }
     assert.equal(names.some((name) => /message|conversation|transcript|timeline/i.test(name)), false);
@@ -133,7 +133,7 @@ describe("Codex 网关", () => {
     }
   });
 
-  it("拒绝根目录外的路径，并在已有任务时拒绝第二个 turn", async () => {
+  it("拒绝根目录外的路径，另一条会话可以同时开始，同一条会话不会再开一轮", async () => {
     const harness = await startHarness();
     const outside = mkdtempSync(path.join(tmpdir(), "codex-web-outside-"));
     try {
@@ -143,26 +143,29 @@ describe("Codex 网关", () => {
       assert.equal(rejected.status, 400);
       const created = await request(harness.port, "POST", "/api/projects", { name: "demo", path: harness.root }, login.cookie);
       const project = created.json.project as { id: number };
-      const first = await request(harness.port, "POST", `/api/projects/${project.id}/threads`, { text: "第一句" }, login.cookie);
+      const first = await request(harness.port, "POST", `/api/projects/${project.id}/threads`, { text: "第一句", cwd: outside }, login.cookie);
       assert.equal(first.status, 201);
+      assert.equal(harness.engine.threads[0]?.cwd, harness.root);
       const second = await request(harness.port, "POST", `/api/projects/${project.id}/threads`, { text: "第二句" }, login.cookie);
-      assert.equal(second.status, 409);
-      assert.equal(harness.engine.startTurnCalls, 1);
+      assert.equal(second.status, 201);
+      assert.notEqual(second.json.threadId, first.json.threadId);
+      assert.equal(harness.engine.startTurnCalls, 2);
       const task = harness.db.prepare("SELECT status FROM tasks WHERE id = ?").get(Number(first.json.taskId)) as { status: string };
       assert.equal(task.status, "running");
-      harness.engine.emit({
-        type: "approval",
-        threadId: String(first.json.threadId),
-        turnId: String(first.json.turnId),
-        approvalId: "appr-busy",
-        kind: "command",
-        text: "ls",
-      });
-      const third = await request(harness.port, "POST", `/api/projects/${project.id}/threads`, { text: "第三句" }, login.cookie);
-      assert.equal(third.status, 409);
-      const waiting = harness.db.prepare("SELECT status FROM tasks WHERE id = ?").get(Number(first.json.taskId)) as { status: string };
-      assert.equal(waiting.status, "waiting_approval");
-      assert.equal(harness.engine.startTurnCalls, 1);
+      const queued = await request(
+        harness.port,
+        "POST",
+        `/api/projects/${project.id}/threads`,
+        { text: "第三句", threadId: first.json.threadId },
+        login.cookie,
+      );
+      assert.equal(queued.status, 200);
+      assert.equal(queued.json.queued, true);
+      assert.equal(harness.engine.startTurnCalls, 2);
+      const running = harness.db
+        .prepare(`SELECT COUNT(*) AS count FROM tasks WHERE thread_id = ? AND status = 'running'`)
+        .get(String(first.json.threadId)) as { count: number };
+      assert.equal(running.count, 1);
     } finally {
       await harness.close();
     }

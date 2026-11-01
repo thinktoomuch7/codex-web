@@ -1,5 +1,5 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import type { CodexEngine, EngineEvent, ThreadSummary, TimelineItem } from "./types.ts";
+import type { ApprovalDecision, CodexEngine, EngineEvent, ThreadLaunch, ThreadSummary, TimelineItem } from "./types.ts";
 import { RpcClient, sendListThreads, type RpcTransport } from "./rpc.ts";
 
 type Handler = (event: EngineEvent) => void;
@@ -38,7 +38,7 @@ export class UnixCodexEngine implements CodexEngine {
     this.client.onNotification((message) => {
       const params = (message.params ?? {}) as Record<string, unknown>;
       const threadId = typeof params.threadId === "string" ? params.threadId : "";
-      console.error(`codex-event ${message.method}`);
+      if (!/delta/i.test(message.method)) console.error(`codex-event ${message.method}`);
       if (message.method === "turn/completed") {
         const turn = params.turn as { id?: string; status?: string } | undefined;
         const raw = turn?.status;
@@ -52,6 +52,12 @@ export class UnixCodexEngine implements CodexEngine {
           threadId,
           item: timelineItemFromRaw(item, `${threadId}-${message.method}`),
         });
+      }
+      const delta = streamDelta(message.method, params);
+      if (delta) this.emit({ type: "delta", ...delta });
+      if (message.method === "thread/name/updated") {
+        const title = typeof params.name === "string" ? params.name : typeof params.title === "string" ? params.title : "";
+        if (title) this.emit({ type: "title", threadId, title });
       }
     });
     this.client.onServerRequest((request) => {
@@ -105,12 +111,64 @@ export class UnixCodexEngine implements CodexEngine {
     }));
   }
 
-  async startThread(cwd: string): Promise<{ id: string }> {
-    const result = (await this.rpc().request("thread/start", { cwd, serviceName: "codex-web" })) as {
+  async startThread(cwd: string, launch?: ThreadLaunch): Promise<{ id: string }> {
+    const result = (await this.rpc().request("thread/start", threadStartParams(cwd, launch))) as {
       thread: { id: string };
     };
     this.loadedThreads.add(result.thread.id);
     return { id: result.thread.id };
+  }
+
+  async applySettings(threadId: string, cwd: string | undefined, launch: ThreadLaunch): Promise<void> {
+    await this.rpc().request("thread/resume", resumeParams(threadId, cwd, launch));
+    this.loadedThreads.add(threadId);
+  }
+
+  async relocate(threadId: string, cwd: string): Promise<void> {
+    try {
+      await this.rpc().request("thread/resume", { threadId, cwd });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (!/already/i.test(message)) throw error;
+    }
+    this.loadedThreads.add(threadId);
+  }
+
+  async setThreadName(threadId: string, name: string): Promise<void> {
+    await this.rpc().request("thread/name/set", { threadId, name });
+  }
+
+  async archiveThread(threadId: string): Promise<void> {
+    await this.rpc().request("thread/archive", { threadId });
+  }
+
+  async unarchiveThread(threadId: string): Promise<void> {
+    await this.rpc().request("thread/unarchive", { threadId });
+  }
+
+  async forkThread(threadId: string, cwd: string): Promise<{ id: string }> {
+    const result = (await this.rpc().request("thread/fork", { threadId, cwd })) as {
+      thread?: { id: string };
+      threadId?: string;
+    };
+    const id = result.thread?.id ?? result.threadId;
+    if (!id) throw new Error("分叉没有返回会话");
+    this.loadedThreads.add(id);
+    return { id };
+  }
+
+  async listModels(): Promise<{ id: string; name: string }[]> {
+    const result = (await this.rpc().request("model/list", {})) as {
+      data?: { id?: string; model?: string; name?: string }[];
+      models?: { id?: string; model?: string; name?: string }[];
+    };
+    const rows = result.data ?? result.models ?? [];
+    return rows
+      .map((row) => {
+        const id = row.id ?? row.model ?? "";
+        return { id, name: row.name ?? id };
+      })
+      .filter((row) => row.id);
   }
 
   async startTurn(threadId: string, text: string, cwd?: string): Promise<{ turnId: string }> {
@@ -151,7 +209,7 @@ export class UnixCodexEngine implements CodexEngine {
     return (result.data ?? []).map((entry, index) => timelineItemFromRaw(entry.item, `${threadId}-${index}`));
   }
 
-  async respondApproval(approvalId: string, decision: "accept" | "decline"): Promise<void> {
+  async respondApproval(approvalId: string, decision: ApprovalDecision): Promise<void> {
     const rpcId = this.approvalRpcIds.get(approvalId);
     if (rpcId === undefined) throw new Error("没有对应的审批请求");
     this.rpc().respond(rpcId, { decision });
@@ -182,6 +240,53 @@ type RawItem = {
   aggregated_output?: string;
   content?: unknown;
 };
+
+const STREAM_METHODS = new Set([
+  "item/agentMessage/delta",
+  "item/commandExecution/outputDelta",
+  "item/fileChange/outputDelta",
+  "item/reasoning/textDelta",
+  "item/reasoning/summaryTextDelta",
+  "item/plan/delta",
+]);
+
+export function threadStartParams(cwd: string, launch?: ThreadLaunch): Record<string, string> {
+  return {
+    cwd,
+    serviceName: "codex-web",
+    ...(launch?.model ? { model: launch.model } : {}),
+    ...(launch?.sandbox ? { sandbox: launch.sandbox } : {}),
+    ...(launch?.approvalPolicy ? { approvalPolicy: launch.approvalPolicy } : {}),
+  };
+}
+
+export function resumeParams(threadId: string, cwd: string | undefined, launch?: ThreadLaunch): Record<string, string> {
+  return {
+    threadId,
+    ...(cwd ? { cwd } : {}),
+    ...(launch?.model ? { model: launch.model } : {}),
+    ...(launch?.sandbox ? { sandbox: launch.sandbox } : {}),
+    ...(launch?.approvalPolicy ? { approvalPolicy: launch.approvalPolicy } : {}),
+  };
+}
+
+export function streamDelta(
+  method: string,
+  params: Record<string, unknown>,
+): { threadId: string; itemId: string; kind: string; text: string } | null {
+  if (!STREAM_METHODS.has(method)) return null;
+  const text = typeof params.delta === "string" ? params.delta : typeof params.text === "string" ? params.text : "";
+  const threadId = typeof params.threadId === "string" ? params.threadId : "";
+  const item = params.item as { id?: string } | undefined;
+  const itemId = typeof params.itemId === "string" ? params.itemId : typeof item?.id === "string" ? item.id : "";
+  if (!text || !threadId || !itemId) return null;
+  let kind = "agentMessage";
+  if (method.includes("commandExecution")) kind = "commandExecution";
+  else if (method.includes("fileChange")) kind = "fileChange";
+  else if (method.includes("reasoning")) kind = "reasoning";
+  else if (method.includes("plan")) kind = "plan";
+  return { threadId, itemId, kind, text };
+}
 
 export function timelineItemFromRaw(item: RawItem | undefined, fallbackId: string): TimelineItem {
   const command = commandLine(item?.command);

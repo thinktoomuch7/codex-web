@@ -313,3 +313,57 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.sidebar {
+  overflow: hidden;
+}
+
+.thread-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.sidebar-corner {
+  margin-top: auto;
+}
+
+.chat-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+
+.chat-tools label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+
+.find-hit {
+  background: #f3e3a4;
+}
+
+.approval-inline .row,
+.git-panel .row,
+.directory-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.queue-note {
+  color: var(--muted);
+}
+
+.git-panel pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.nav-delete:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

@@ -1,5 +1,13 @@
 export type Project = { id: number; name: string; path: string };
-export type ThreadSummary = { id: string; cwd: string; title: string };
+export type ThreadSummary = {
+  id: string;
+  cwd: string;
+  title: string;
+  status?: string | null;
+  pending?: number;
+  mode?: string;
+  updatedAt?: number;
+};
 export type TimelineItem = { id: string; kind: string; text: string; command?: string };
 export type Approval = { id: string; thread_id: string; turn_id: string; kind: string; payload: string };
 export type Task = { id: number; status: string; turn_id: string } | null;
@@ -26,14 +34,17 @@ export const api = {
   projects: () => send<{ projects: Project[] }>("/api/projects"),
   addProject: (name: string, path: string) =>
     send<{ project: Project }>("/api/projects", { method: "POST", body: JSON.stringify({ name, path }) }),
-  threads: (projectId: number) => send<{ threads: ThreadSummary[] }>(`/api/projects/${projectId}/threads`),
+  threads: (projectId: number, archived = false) =>
+    send<{ threads: ThreadSummary[]; git: boolean }>(`/api/projects/${projectId}/threads${archived ? "?archived=1" : ""}`),
   account: () => send<{ loggedIn: boolean }>("/api/account"),
   timeline: (threadId: string) =>
-    send<{ items: TimelineItem[]; approvals: Approval[]; task: Task }>(`/api/threads/${encodeURIComponent(threadId)}/timeline`),
-  startTurn: (projectId: number, text: string, threadId?: string) =>
-    send<{ threadId: string; turnId: string; taskId: number }>(`/api/projects/${projectId}/threads`, {
+    send<{ items: TimelineItem[]; approvals: Approval[]; task: Task; queue?: string[] }>(
+      `/api/threads/${encodeURIComponent(threadId)}/timeline`,
+    ),
+  startTurn: (projectId: number, text: string, threadId?: string, directory?: "worktree" | "local") =>
+    send<{ threadId: string; turnId: string; taskId: number; queued?: boolean }>(`/api/projects/${projectId}/threads`, {
       method: "POST",
-      body: JSON.stringify({ text, threadId }),
+      body: JSON.stringify({ text, threadId, directory }),
     }),
   interrupt: (threadId: string) =>
     send<{ ok: boolean }>(`/api/threads/${encodeURIComponent(threadId)}/interrupt`, { method: "POST", body: "{}" }),
@@ -42,10 +53,41 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ projectId }),
     }),
-  approve: (approvalId: string, decision: "accept" | "decline") =>
+  approve: (approvalId: string, decision: "accept" | "decline" | "acceptForSession") =>
     send<{ ok: boolean }>(`/api/approvals/${encodeURIComponent(approvalId)}`, {
       method: "POST",
       body: JSON.stringify({ decision }),
+    }),
+  renameThread: (projectId: number, threadId: string, name: string) =>
+    send<{ ok: boolean }>(`/api/threads/${encodeURIComponent(threadId)}/rename`, {
+      method: "POST",
+      body: JSON.stringify({ projectId, name }),
+    }),
+  archiveThread: (projectId: number, threadId: string) =>
+    send<{ ok: boolean }>(`/api/threads/${encodeURIComponent(threadId)}/archive`, {
+      method: "POST",
+      body: JSON.stringify({ projectId }),
+    }),
+  unarchiveThread: (projectId: number, threadId: string) =>
+    send<{ ok: boolean }>(`/api/threads/${encodeURIComponent(threadId)}/unarchive`, {
+      method: "POST",
+      body: JSON.stringify({ projectId }),
+    }),
+  forkThread: (projectId: number, threadId: string) =>
+    send<{ threadId: string }>(`/api/threads/${encodeURIComponent(threadId)}/fork`, {
+      method: "POST",
+      body: JSON.stringify({ projectId }),
+    }),
+  saveSettings: (threadId: string, patch: { model?: string; sandbox?: string; approvalPolicy?: string }) =>
+    send<{ ok: boolean }>(`/api/threads/${encodeURIComponent(threadId)}/settings`, {
+      method: "POST",
+      body: JSON.stringify(patch),
+    }),
+  models: () => send<{ models: { id: string; name: string }[] }>("/api/models"),
+  git: (projectId: number, threadId: string, body: { action: string; paths?: string[]; message?: string; title?: string }) =>
+    send<{ diff?: string; ok?: boolean; url?: string; error?: string }>(`/api/threads/${encodeURIComponent(threadId)}/git`, {
+      method: "POST",
+      body: JSON.stringify({ projectId, ...body }),
     }),
 };
 

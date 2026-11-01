@@ -91,7 +91,35 @@ async function route(
   const threads = url.pathname.match(/^\/api\/projects\/(\d+)\/threads$/);
   if (request.method === "GET" && threads) {
     runtime.assertBrowserAction("list-threads");
-    sendJson(response, 200, { threads: await runtime.listThreads(Number(threads[1])) });
+    const archived = url.searchParams.get("archived") === "1";
+    sendJson(response, 200, await runtime.listThreads(Number(threads[1]), archived));
+    return;
+  }
+
+  const projectEvents = url.pathname.match(/^\/api\/projects\/(\d+)\/events$/);
+  if (request.method === "GET" && projectEvents) {
+    runtime.assertBrowserAction("list-threads");
+    const projectId = Number(projectEvents[1]);
+    response.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
+    const push = async () => {
+      try {
+        if (response.writableEnded || response.destroyed) return;
+        const listed = await runtime.listThreads(projectId);
+        if (!response.writableEnded && !response.destroyed) response.write(`data: ${JSON.stringify(listed)}\n\n`);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    await push();
+    const unsubscribe = runtime.subscribe((notice) => {
+      if (notice.scope !== "threads") return;
+      void push();
+    });
+    request.on("close", () => unsubscribe());
     return;
   }
 
@@ -99,8 +127,15 @@ async function route(
     runtime.assertBrowserAction("start-turn");
     const body = await readJson(request);
     const threadId = typeof body.threadId === "string" && body.threadId !== "" ? body.threadId : undefined;
-    const created = await runtime.startTurn(Number(threads[1]), String(body.text ?? ""), threadId);
-    sendJson(response, 201, created);
+    const directory = body.directory === "local" ? "local" : body.directory === "worktree" ? "worktree" : undefined;
+    const created = await runtime.startTurn(Number(threads[1]), String(body.text ?? ""), threadId, directory);
+    sendJson(response, created.queued ? 200 : 201, created);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/models") {
+    runtime.assertBrowserAction("list-models");
+    sendJson(response, 200, { models: await runtime.listModels() });
     return;
   }
 
@@ -125,25 +160,51 @@ async function route(
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     });
-    const push = async () => {
-      try {
-        if (response.writableEnded || response.destroyed) return;
-        const view = await runtime.timeline(threadId);
-        if (!response.writableEnded && !response.destroyed) {
-          response.write(`data: ${JSON.stringify(view)}\n\n`);
-        }
-      } catch (error) {
-        console.error(error);
-      }
+    response.socket?.setNoDelay(true);
+    let ready = false;
+    const write = () => {
+      if (!ready || response.writableEnded || response.destroyed) return;
+      const view = runtime.cachedTimeline(threadId);
+      response.write(
+        `data: ${JSON.stringify({
+          ...view,
+          approvals: runtime.pendingApprovals(threadId),
+          task: runtime.taskForThread(threadId) ?? null,
+        })}\n\n`,
+      );
     };
     response.on("error", (error) => {
       console.error(error);
     });
-    await push();
-    const unsubscribe = runtime.subscribe(() => {
-      void push();
+    const unsubscribe = runtime.subscribe((notice) => {
+      if (!ready || response.writableEnded || response.destroyed) return;
+      if (notice.threadId && notice.threadId !== threadId) return;
+      if (notice.scope === "text") {
+        response.write(`data: ${JSON.stringify({ type: "delta", itemId: notice.itemId, kind: notice.kind, text: notice.text })}\n\n`);
+        return;
+      }
+      if (notice.scope === "item") {
+        response.write(`data: ${JSON.stringify({ type: "item", item: notice.item })}\n\n`);
+        return;
+      }
+      response.write(
+        `data: ${JSON.stringify({
+          type: "status",
+          approvals: runtime.pendingApprovals(threadId),
+          task: runtime.taskForThread(threadId) ?? null,
+          queue: runtime.cachedTimeline(threadId).queue,
+        })}\n\n`,
+      );
     });
+    try {
+      await runtime.timeline(threadId);
+    } catch (error) {
+      console.error(error);
+    }
+    ready = true;
+    write();
     request.on("close", () => unsubscribe());
     return;
   }
@@ -169,9 +230,74 @@ async function route(
   if (request.method === "POST" && approval) {
     runtime.assertBrowserAction("submit-approval");
     const body = await readJson(request);
-    const decision = body.decision === "decline" ? "decline" : "accept";
+    const decision = body.decision === "decline" ? "decline" : body.decision === "acceptForSession" ? "acceptForSession" : "accept";
     await runtime.submitApproval(decodeURIComponent(approval[1]), decision);
     sendJson(response, 200, { ok: true });
+    return;
+  }
+
+  const threadAction = url.pathname.match(/^\/api\/threads\/([^/]+)\/(rename|archive|unarchive|fork|settings|git)$/);
+  if (request.method === "POST" && threadAction) {
+    const threadId = decodeURIComponent(threadAction[1]);
+    const action = threadAction[2];
+    const body = await readJson(request);
+    const projectId = Number(body.projectId);
+    if (action === "rename") {
+      runtime.assertBrowserAction("rename-thread");
+      await runtime.renameThread(projectId, threadId, String(body.name ?? ""));
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+    if (action === "archive") {
+      runtime.assertBrowserAction("archive-thread");
+      await runtime.archiveThread(projectId, threadId);
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+    if (action === "unarchive") {
+      runtime.assertBrowserAction("unarchive-thread");
+      await runtime.unarchiveThread(projectId, threadId);
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+    if (action === "fork") {
+      runtime.assertBrowserAction("fork-thread");
+      sendJson(response, 201, await runtime.forkThread(projectId, threadId));
+      return;
+    }
+    if (action === "settings") {
+      runtime.assertBrowserAction("set-thread-settings");
+      await runtime.setThreadSettings(threadId, {
+        ...(typeof body.model === "string" ? { model: body.model } : {}),
+        ...(typeof body.sandbox === "string" ? { sandbox: body.sandbox } : {}),
+        ...(typeof body.approvalPolicy === "string" ? { approvalPolicy: body.approvalPolicy } : {}),
+      });
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+    runtime.assertBrowserAction(
+      body.action === "stage"
+        ? "git-stage"
+        : body.action === "revert"
+          ? "git-revert"
+          : body.action === "commit"
+            ? "git-commit"
+            : body.action === "push"
+              ? "git-push"
+              : body.action === "pr"
+                ? "git-pr"
+                : "git-diff",
+    );
+    const gitAction = body.action === "stage" || body.action === "revert" || body.action === "commit" || body.action === "push" || body.action === "pr" ? body.action : "diff";
+    sendJson(
+      response,
+      200,
+      await runtime.gitAction(projectId, threadId, gitAction, {
+        paths: Array.isArray(body.paths) ? body.paths.map(String) : [],
+        message: typeof body.message === "string" ? body.message : undefined,
+        title: typeof body.title === "string" ? body.title : undefined,
+      }),
+    );
     return;
   }
 
@@ -228,7 +354,11 @@ function serveStatic(webRoot: string, pathname: string, response: ServerResponse
     ".css": "text/css; charset=utf-8",
     ".svg": "image/svg+xml",
   };
-  response.writeHead(200, { "Content-Type": types[path.extname(filePath)] ?? "application/octet-stream" });
+  const extension = path.extname(filePath);
+  response.writeHead(200, {
+    "Content-Type": types[extension] ?? "application/octet-stream",
+    ...(extension === ".html" ? { "Cache-Control": "no-cache" } : {}),
+  });
   response.end(readFileSync(filePath));
   return true;
 }

@@ -13,21 +13,38 @@ export type TimelineItem = {
   command?: string;
 };
 
+export type ThreadLaunch = {
+  model?: string;
+  sandbox?: string;
+  approvalPolicy?: string;
+};
+
+export type ApprovalDecision = "accept" | "decline" | "acceptForSession";
+
 export type EngineEvent =
   | { type: "item"; threadId: string; item: TimelineItem }
+  | { type: "delta"; threadId: string; itemId: string; kind: string; text: string }
   | { type: "approval"; threadId: string; turnId: string; approvalId: string; kind: string; text: string }
-  | { type: "turn"; threadId: string; turnId: string; status: "completed" | "failed" | "interrupted" };
+  | { type: "turn"; threadId: string; turnId: string; status: "completed" | "failed" | "interrupted" }
+  | { type: "title"; threadId: string; title: string };
 
 export interface CodexEngine {
   version(): Promise<string>;
   readAccount(): Promise<AccountState>;
   listThreads(cwd: string): Promise<ThreadSummary[]>;
-  startThread(cwd: string): Promise<{ id: string }>;
+  startThread(cwd: string, launch?: ThreadLaunch): Promise<{ id: string }>;
   startTurn(threadId: string, text: string, cwd?: string): Promise<{ turnId: string }>;
+  applySettings(threadId: string, cwd: string | undefined, launch: ThreadLaunch): Promise<void>;
+  relocate(threadId: string, cwd: string): Promise<void>;
   interrupt(threadId: string, turnId: string): Promise<void>;
   listPersistedItems(threadId: string): Promise<TimelineItem[]>;
   deleteThread(threadId: string): Promise<void>;
-  respondApproval(approvalId: string, decision: "accept" | "decline"): Promise<void>;
+  setThreadName(threadId: string, name: string): Promise<void>;
+  archiveThread(threadId: string): Promise<void>;
+  unarchiveThread(threadId: string): Promise<void>;
+  forkThread(threadId: string, cwd: string): Promise<{ id: string }>;
+  listModels(): Promise<{ id: string; name: string }[]>;
+  respondApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
   onEvent(listener: (event: EngineEvent) => void): () => void;
   onClose(listener: () => void): () => void;
 }
@@ -41,4 +58,16 @@ export const ALLOWED_BROWSER_ACTIONS = [
   "read-timeline",
   "read-account",
   "delete-thread",
+  "rename-thread",
+  "archive-thread",
+  "unarchive-thread",
+  "fork-thread",
+  "set-thread-settings",
+  "list-models",
+  "git-diff",
+  "git-stage",
+  "git-revert",
+  "git-commit",
+  "git-push",
+  "git-pr",
 ] as const;

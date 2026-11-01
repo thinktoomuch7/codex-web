@@ -36,6 +36,33 @@ CREATE TABLE IF NOT EXISTS approvals (
   decision TEXT,
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS thread_places (
+  thread_id TEXT PRIMARY KEY,
+  project_id INTEGER NOT NULL,
+  mode TEXT NOT NULL,
+  cwd TEXT NOT NULL,
+  branch TEXT,
+  archived INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS thread_queue (
+  id INTEGER PRIMARY KEY,
+  thread_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS thread_grants (
+  thread_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  PRIMARY KEY (thread_id, kind)
+);
+CREATE TABLE IF NOT EXISTS thread_settings (
+  thread_id TEXT PRIMARY KEY,
+  title TEXT,
+  model TEXT,
+  sandbox TEXT,
+  approval_policy TEXT
+);
 `;
 
 export function openDatabase(dataDir: string): DatabaseSync {

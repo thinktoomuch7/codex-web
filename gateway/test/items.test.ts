@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { timelineItemFromRaw } from "../src/codex/unix-engine.ts";
+import { streamDelta, threadStartParams, timelineItemFromRaw } from "../src/codex/unix-engine.ts";
 
 describe("时间线条目", () => {
   it("命令和输出分开，完成后不再只用输出盖住命令", () => {
@@ -21,6 +21,14 @@ describe("时间线条目", () => {
     const item = timelineItemFromRaw({ type: "commandExecution", command: "npm test" }, "fallback");
     assert.equal(item.command, "npm test");
     assert.equal(item.text, "");
+  });
+
+  it("没改过的会话不附带模型参数，增量通知在完成前就有文字", () => {
+    assert.deepEqual(threadStartParams("/srv/projects"), { cwd: "/srv/projects", serviceName: "codex-web" });
+    assert.equal(threadStartParams("/srv/projects", { model: "gpt-test" }).model, "gpt-test");
+    const delta = streamDelta("item/agentMessage/delta", { threadId: "thr", itemId: "m1", delta: "你" });
+    assert.equal(delta?.text, "你");
+    assert.equal(streamDelta("thread/name/updated", { threadId: "thr", delta: "名" }), null);
   });
 
   it("普通消息仍读 text", () => {
