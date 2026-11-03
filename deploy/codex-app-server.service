@@ -1,3 +1,4 @@
+# 不要启用。网关会自己拉起唯一的 codex app-server。再启用这个单元会抢同一份 CODEX_HOME。
 [Unit]
 Description=Codex app-server
 After=network-online.target

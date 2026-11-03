@@ -1,3 +1,4 @@
+# 示例。实际单元由 deploy/install.sh 按本机 node 路径和代理生成。
 [Unit]
 Description=Codex Web gateway
 After=network-online.target
