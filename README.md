@@ -161,3 +161,7 @@ npm run build
 ```
 
 `npm test` 只跑网关测试。`npm run build` 生成 `web/dist`，网关和页面共用一个端口。本地临时看页面时，另开一个终端执行 `npm run dev -w web`，开发服务器在 `http://127.0.0.1:5173`，并把 `/api` 转到 `127.0.0.1:8787`。
+
+## 协议
+
+本仓库使用 [MIT](LICENSE)。`web/public/icons/catppuccin/` 里的图标也是 MIT，许可文本在该目录的 `LICENSE`。
