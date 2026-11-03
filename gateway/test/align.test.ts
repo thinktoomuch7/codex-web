@@ -89,8 +89,10 @@ describe("并行、队列和检出", () => {
       };
       assert.equal(place.mode, "worktree");
       assert.equal(place.branch.startsWith("codex/"), true);
-      assert.equal(place.cwd.includes(`${path.sep}worktrees${path.sep}${projectId}${path.sep}${worktree.json.threadId}`), true);
-      assert.equal(place.cwd.startsWith(harness.root), false);
+      const beside = path.join(path.dirname(harness.root), `${path.basename(harness.root)}-worktrees`);
+      assert.equal(place.cwd.startsWith(beside), true);
+      assert.equal(place.cwd.includes(place.branch.replaceAll("/", "-")), true);
+      assert.equal(place.cwd === harness.root || place.cwd.startsWith(`${harness.root}${path.sep}`), false);
       assert.equal(existsSync(place.cwd), true);
 
       harness.engine.emit({ type: "turn", threadId: String(worktree.json.threadId), turnId: String(worktree.json.turnId), status: "completed" });

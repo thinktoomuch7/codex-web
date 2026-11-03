@@ -6,6 +6,7 @@ export type ThreadSummary = {
   status?: string | null;
   pending?: number;
   mode?: string;
+  pinned?: boolean;
   updatedAt?: number;
 };
 export type RecentThread = ThreadSummary & { projectId: number; projectName: string };
@@ -15,7 +16,7 @@ export type Task = { id: number; status: string; turn_id: string; created_at?: n
 export type TimelineView = { items: TimelineItem[]; approvals: Approval[]; task: Task; queue?: string[]; older?: boolean };
 
 export function apiUrl(pathname: string): string {
-  const prefix = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const prefix = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
   return `${prefix}${pathname}`;
 }
 
@@ -90,9 +91,41 @@ export const api = {
     }),
   models: () => send<{ models: { id: string; name: string }[] }>("/api/models"),
   git: (projectId: number, threadId: string, body: { action: string; paths?: string[]; message?: string; title?: string }) =>
-    send<{ diff?: string; ok?: boolean; url?: string; error?: string }>(`/api/threads/${encodeURIComponent(threadId)}/git`, {
+    send<{ diff?: string; files?: string[]; ok?: boolean; url?: string; error?: string }>(`/api/threads/${encodeURIComponent(threadId)}/git`, {
       method: "POST",
       body: JSON.stringify({ projectId, ...body }),
+    }),
+  browse: (dir: string) => send<{ path: string; parent: string; entries: { name: string; kind: "dir" | "file" }[] }>(`/api/directories?path=${encodeURIComponent(dir)}`),
+  createDirectory: (parent: string, name: string) =>
+    send<{ path: string }>("/api/directories", { method: "POST", body: JSON.stringify({ parent, name }) }),
+  capabilities: () => send<{ usage: boolean; compact: boolean; thinking: boolean }>("/api/capabilities"),
+  pinThread: (projectId: number, threadId: string, pinned: boolean) =>
+    send<{ ok: boolean }>(`/api/threads/${encodeURIComponent(threadId)}/pin`, {
+      method: "POST",
+      body: JSON.stringify({ projectId, pinned }),
+    }),
+  files: (projectId: number, threadId: string, dir = "") =>
+    send<{ path: string; entries: { name: string; kind: "dir" | "file" }[] }>(
+      `/api/threads/${encodeURIComponent(threadId)}/files?projectId=${projectId}&path=${encodeURIComponent(dir)}`,
+    ),
+  file: (projectId: number, threadId: string, filePath: string) =>
+    send<{ kind: string; text?: string; data?: string }>(
+      `/api/threads/${encodeURIComponent(threadId)}/file?projectId=${projectId}&path=${encodeURIComponent(filePath)}`,
+    ),
+  upload: (projectId: number, threadId: string, filePath: string, data: string) =>
+    send<{ path: string }>(`/api/threads/${encodeURIComponent(threadId)}/files`, {
+      method: "POST",
+      body: JSON.stringify({ projectId, path: filePath, data }),
+    }),
+  terminal: (projectId: number, threadId: string) =>
+    send<{ id: string; cwd: string }>(`/api/threads/${encodeURIComponent(threadId)}/terminal`, {
+      method: "POST",
+      body: JSON.stringify({ projectId }),
+    }),
+  terminalInput: (threadId: string, id: string, data: string) =>
+    send<{ ok: boolean }>(`/api/threads/${encodeURIComponent(threadId)}/terminal/input`, {
+      method: "POST",
+      body: JSON.stringify({ id, data }),
     }),
 };
 

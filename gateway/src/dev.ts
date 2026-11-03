@@ -26,7 +26,18 @@ engine.versionValue = "9.9.9-test";
 const startTurn = engine.startTurn.bind(engine);
 engine.startTurn = async (threadId, text) => {
   const result = await startTurn(threadId, text);
-  engine.emit({ type: "delta", threadId, itemId: `msg-${result.turnId}`, kind: "agentMessage", text: "先" });
+  engine.pushLive(threadId, {
+    id: `think-${result.turnId}`,
+    kind: "reasoning",
+    text: "先看测试输出，再决定要不要改。",
+  });
+  engine.emit({
+    type: "delta",
+    threadId,
+    itemId: `msg-${result.turnId}`,
+    kind: "agentMessage",
+    text: "结果如下。\n\n```js\nconst ready = true;\nconsole.log(ready);\n```\n",
+  });
   engine.pushLive(threadId, {
     id: `cmd-${result.turnId}`,
     kind: "commandExecution",
@@ -64,6 +75,8 @@ engine.persisted.set(
   seeded.threadId,
   [{ id: "n0", kind: "userMessage", text: "最早的一句" }].concat(
     Array.from({ length: 44 }, (_, index) => ({ id: `n${index + 1}`, kind: "userMessage", text: `后续 ${index + 1}` })),
+    { id: "think-demo", kind: "reasoning", text: "先看目录里的说明，再给出片段。" },
+    { id: "agent-demo", kind: "agentMessage", text: "说明在 readme。\n\n```js\nconst ready = true;\nconsole.log(ready);\n```\n" },
   ),
 );
 await startServer(config, runtime);

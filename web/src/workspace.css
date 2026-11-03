@@ -478,6 +478,77 @@
   margin-top: 8px;
 }
 
+.transcript {
+  flex-direction: row;
+}
+
+.dialogue {
+  flex: 1;
+  min-width: 0;
+}
+
+.mini {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  width: 14px;
+}
+
+.mini button {
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: #c8c8c8;
+}
+
+.user-line {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.assistant-md {
+  padding: 4px 0 8px 12px;
+  border-left: 2px solid #d0d0d0;
+}
+
+.assistant-md p,
+.md p {
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+}
+
+.tool-card,
+.think,
+.file-pane,
+.term-pane {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.file-pane,
+.term-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.term-out {
+  white-space: pre-wrap;
+}
+
+.project-block {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.composer select {
+  max-width: 180px;
+}
+
 @media (max-width: 860px) {
   .sidebar:not(.open) {
     pointer-events: none;

@@ -71,6 +71,8 @@ export function openDatabase(dataDir: string): DatabaseSync {
   db.exec(SCHEMA);
   const taskColumns = db.prepare("PRAGMA table_info(tasks)").all() as { name: string }[];
   if (!taskColumns.some((column) => column.name === "error")) db.exec("ALTER TABLE tasks ADD COLUMN error TEXT");
+  const placeColumns = db.prepare("PRAGMA table_info(thread_places)").all() as { name: string }[];
+  if (!placeColumns.some((column) => column.name === "pinned")) db.exec("ALTER TABLE thread_places ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0");
   return db;
 }
 

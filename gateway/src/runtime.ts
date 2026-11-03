@@ -5,8 +5,11 @@ import { hashPassword, verifyPassword } from "./passwords.ts";
 import type { AppConfig } from "./config.ts";
 import type { ApprovalDecision, CodexEngine, ThreadLaunch, TimelineItem } from "./codex/types.ts";
 import { ALLOWED_BROWSER_ACTIONS } from "./codex/types.ts";
-import { addWorktree, assertWorktreeAllowed, isGitRepo, isInside, moveWorktree, redactSecrets, removeWorktree, runCommand, runGit, safeRelative } from "./git.ts";
-import { resolveProjectPath } from "./paths.ts";
+import { listTree, readPreview, writeUpload } from "./files.ts";
+import { addWorktree, assertWorktreeAllowed, isGitRepo, isInside, redactSecrets, removeWorktree, runCommand, runGit, safeRelative, worktreeCheckoutPath } from "./git.ts";
+import { createChildDirectory, listReadableDirectory, resolveReadablePath } from "./paths.ts";
+import { startTerminal, terminalSession } from "./terminal.ts";
+import { OFFICIAL_EXTRAS } from "./codex/types.ts";
 import { explainCodexError } from "./codex/turn-error.ts";
 import { shortTitle } from "./titles.ts";
 
@@ -18,7 +21,16 @@ export type TimelineNotice =
 export type DirectoryChoice = "worktree" | "local";
 
 type LiveItem = TimelineItem;
-type Place = { thread_id: string; project_id: number; mode: string; cwd: string; branch: string | null; archived: number; created_at: number };
+type Place = {
+  thread_id: string;
+  project_id: number;
+  mode: string;
+  cwd: string;
+  branch: string | null;
+  archived: number;
+  created_at: number;
+  pinned?: number;
+};
 type Settings = { title: string | null; model: string | null; sandbox: string | null; approval_policy: string | null };
 
 export class Runtime {
@@ -147,10 +159,25 @@ export class Runtime {
   }
 
   addProject(name: string, candidate: string): { id: number; name: string; path: string } {
-    const resolved = resolveProjectPath(candidate, this.config.projectRoots);
+    const resolved = resolveReadablePath(candidate);
     const now = Date.now();
     const result = this.db.prepare("INSERT INTO projects (name, path, created_at) VALUES (?, ?, ?)").run(name, resolved, now);
     return { id: Number(result.lastInsertRowid), name, path: resolved };
+  }
+
+  browseDirectory(candidate: string) {
+    this.assertBrowserAction("browse-directory");
+    return listReadableDirectory(candidate);
+  }
+
+  createDirectory(parent: string, name: string): { path: string } {
+    this.assertBrowserAction("create-directory");
+    return { path: createChildDirectory(parent, name) };
+  }
+
+  capabilities() {
+    this.assertBrowserAction("read-capabilities");
+    return OFFICIAL_EXTRAS;
   }
 
   listProjects(): { id: number; name: string; path: string }[] {
@@ -179,6 +206,7 @@ export class Runtime {
         updatedAt: thread.updatedAt,
         projectId: project.id,
         projectName: project.name,
+        pinned: thread.pinned,
       })),
     );
     threads.sort((left, right) => right.updatedAt - left.updatedAt);
@@ -436,20 +464,68 @@ export class Runtime {
       | undefined;
   }
 
+  pinThread(projectId: number, threadId: string, pinned: boolean): void {
+    this.assertBrowserAction("pin-thread");
+    this.existingThread(projectId, threadId);
+    this.db.prepare("UPDATE thread_places SET pinned = ? WHERE thread_id = ?").run(pinned ? 1 : 0, threadId);
+    this.notify({ scope: "threads", threadId });
+  }
+
+  listFiles(projectId: number, threadId: string, relative = "") {
+    this.assertBrowserAction("list-files");
+    const place = this.requirePlace(projectId, threadId);
+    return listTree(place.cwd, relative);
+  }
+
+  readFile(projectId: number, threadId: string, relative: string) {
+    this.assertBrowserAction("read-file");
+    const place = this.requirePlace(projectId, threadId);
+    return readPreview(place.cwd, relative);
+  }
+
+  uploadFile(projectId: number, threadId: string, relative: string, data: string) {
+    this.assertBrowserAction("upload-file");
+    const place = this.requirePlace(projectId, threadId);
+    const bytes = Buffer.from(data, "base64");
+    return { path: writeUpload(place.cwd, relative, bytes) };
+  }
+
+  openTerminal(projectId: number, threadId: string) {
+    this.assertBrowserAction("terminal");
+    const place = this.requirePlace(projectId, threadId);
+    return startTerminal(place.cwd);
+  }
+
+  writeTerminal(id: string, data: string) {
+    this.assertBrowserAction("terminal");
+    const session = terminalSession(id);
+    if (!session) throw new Error("终端不存在");
+    if (session.error) throw new Error(session.error);
+    session.write(data);
+    return { ok: true };
+  }
+
   async gitAction(
     projectId: number,
     threadId: string,
     action: "diff" | "stage" | "revert" | "commit" | "push" | "pr",
     body: { paths?: string[]; message?: string; title?: string },
-  ): Promise<{ diff?: string; ok?: boolean; url?: string; error?: string }> {
+  ): Promise<{ diff?: string; files?: string[]; ok?: boolean; url?: string; error?: string }> {
     const place = this.requirePlace(projectId, threadId);
     if (!(await isGitRepo(place.cwd))) throw new Error("这个目录不是 Git 仓库");
     const paths = (body.paths ?? []).map((item) => safeRelative(place.cwd, item));
     try {
       if (action === "diff") {
-        const unstaged = await runGit(place.cwd, ["diff", "HEAD"]);
-        const staged = await runGit(place.cwd, ["diff", "--cached"]);
-        return { diff: `${unstaged.stdout}${staged.stdout}` };
+        const status = await runGit(place.cwd, ["status", "--porcelain"]);
+        const files = status.stdout
+          .split(/\r?\n/)
+          .map((line) => line.slice(3).trim())
+          .filter(Boolean)
+          .map((file) => (file.includes(" -> ") ? file.split(" -> ").at(-1) ?? file : file));
+        const target = paths[0];
+        const unstaged = await runGit(place.cwd, target ? ["diff", "HEAD", "--", target] : ["diff", "HEAD"]);
+        const staged = await runGit(place.cwd, target ? ["diff", "--cached", "--", target] : ["diff", "--cached"]);
+        return { diff: `${unstaged.stdout}${staged.stdout}`, files };
       }
       if (action === "stage") {
         if (paths.length === 0) throw new Error("没有要暂存的路径");
@@ -518,21 +594,15 @@ export class Runtime {
   private async makeWorktree(repo: string, projectId: number): Promise<{ provisional: string; branch: string }> {
     const short = randomBytes(4).toString("hex");
     const branch = `codex/${short}`;
-    const provisional = path.join(this.config.dataDir, "worktrees", String(projectId), `pending-${short}`);
+    const provisional = worktreeCheckoutPath(repo, branch);
     const projects = this.listProjects().map((item) => item.path);
     assertWorktreeAllowed(provisional, repo, projects);
     await addWorktree(repo, provisional, branch);
     return { provisional, branch };
   }
 
-  private async settleWorktree(repo: string, projectId: number, provisional: string, threadId: string): Promise<string> {
-    const finalPath = path.join(this.config.dataDir, "worktrees", String(projectId), threadId);
-    const projects = this.listProjects().map((item) => item.path);
-    assertWorktreeAllowed(finalPath, repo, projects);
-    if (path.resolve(provisional) === path.resolve(finalPath)) return provisional;
-    await moveWorktree(repo, provisional, finalPath);
-    await this.engine.relocate(threadId, finalPath);
-    return finalPath;
+  private async settleWorktree(_repo: string, _projectId: number, provisional: string, _threadId: string): Promise<string> {
+    return provisional;
   }
 
   private placeThreads(projectId: number, archived: boolean) {
@@ -549,6 +619,7 @@ export class Runtime {
           status: task?.status ?? null,
           pending: this.pendingApprovals(place.thread_id).length,
           mode: place.mode,
+          pinned: place.pinned === 1,
           updatedAt: task ? this.taskUpdatedAt(place.thread_id) : place.created_at,
         };
       })

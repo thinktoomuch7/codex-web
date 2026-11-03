@@ -71,4 +71,16 @@ export const ALLOWED_BROWSER_ACTIONS = [
   "git-commit",
   "git-push",
   "git-pr",
+  "browse-directory",
+  "create-directory",
+  "pin-thread",
+  "list-files",
+  "read-file",
+  "upload-file",
+  "terminal",
+  "read-capabilities",
 ] as const;
+
+// 对照 unix-engine 实际解析的通知：turn/completed、error、item/*、thread/name/updated。
+// 0.166 这条链路上没有用量、压缩对话或思考档位事件，界面不画对应按钮。
+export const OFFICIAL_EXTRAS = { usage: false, compact: false, thinking: false } as const;

@@ -1,4 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+"use client";
+
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent } from "react";
+import { Workspace } from "./shell";
 import {
   api,
   apiUrl,
@@ -21,6 +24,21 @@ function Mark() {
       <path d="M5 15V7h8" />
       <circle cx="15" cy="7" r="2" />
     </svg>
+  );
+}
+
+function Markdown({ text }: { text: string }) {
+  const parts = text.split("```");
+  return (
+    <div className="md">
+      {parts.map((part, index) =>
+        index % 2 === 1 ? (
+          <pre key={index}>{part.replace(/^[^\n]*\n/, "")}</pre>
+        ) : (
+          part.split("\n").map((line, lineIndex) => <p key={`${index}-${lineIndex}`}>{line || " "}</p>)
+        ),
+      )}
+    </div>
   );
 }
 
@@ -129,6 +147,21 @@ export function App() {
   const [openChecks, setOpenChecks] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [findText, setFindText] = useState("");
+  const [titleQuery, setTitleQuery] = useState("");
+  const [pane, setPane] = useState<"chat" | "files" | "git" | "terminal">("chat");
+  const [fileDir, setFileDir] = useState("");
+  const [fileEntries, setFileEntries] = useState<{ name: string; kind: "dir" | "file" }[]>([]);
+  const [preview, setPreview] = useState("");
+  const [browsePath, setBrowsePath] = useState("");
+  const [browseParent, setBrowseParent] = useState("");
+  const [browseEntries, setBrowseEntries] = useState<{ name: string; kind: "dir" | "file" }[]>([]);
+  const [dirName, setDirName] = useState("");
+  const [termId, setTermId] = useState("");
+  const [termOut, setTermOut] = useState("");
+  const [termLine, setTermLine] = useState("");
+  const [termError, setTermError] = useState("");
+  const [gitFiles, setGitFiles] = useState<string[]>([]);
+  const [extras, setExtras] = useState({ usage: false, compact: false, thinking: false });
   const [showArchived, setShowArchived] = useState(false);
   const [models, setModels] = useState<{ id: string; name: string }[]>([]);
   const [model, setModel] = useState("");
@@ -140,7 +173,7 @@ export function App() {
   const [gitUrl, setGitUrl] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const sending = useRef(false);
-  const transcriptRef = useRef<HTMLElement>(null);
+  const transcriptRef = useRef<HTMLDivElement>(null);
   const followLatest = useRef(true);
   const preserveScroll = useRef<number | null>(null);
   const scrolling = useRef(false);
@@ -154,7 +187,7 @@ export function App() {
   }
 
   useEffect(() => {
-    const fixture = import.meta.env.DEV && new URLSearchParams(window.location.search).get("fixture") === "1";
+    const fixture = process.env.NODE_ENV !== "production" && new URLSearchParams(window.location.search).get("fixture") === "1";
     const open = fixture ? api.login("secret") : Promise.resolve();
     open
       .then(() => Promise.all([api.account(), api.projects(), api.syncRecent()]))
@@ -167,7 +200,17 @@ export function App() {
         const thread = listed.threads[0] ?? null;
         setProjectId(thread?.projectId ?? projectList.projects[0]?.id ?? null);
         setThreadId(thread?.id ?? null);
-        if (thread) applyView(await api.timeline(thread.id));
+        if (thread) {
+          applyView(await api.timeline(thread.id));
+          const listedFiles = await api.files(thread.projectId, thread.id, "").catch(() => null);
+          if (listedFiles) {
+            setFileDir("");
+            setFileEntries(listedFiles.entries);
+          }
+        }
+        const listedModels = await api.models().catch(() => ({ models: [] }));
+        setModels(listedModels.models);
+        setExtras(await api.capabilities().catch(() => ({ usage: false, compact: false, thinking: false })));
       })
       .catch(() => setPhase("login"));
   }, []);
@@ -233,6 +276,17 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [task?.status, task?.turn_id]);
 
+  useEffect(() => {
+    if (!termId || !threadId) return;
+    const source = new EventSource(apiUrl(`/api/threads/${encodeURIComponent(threadId)}/terminal/events?id=${encodeURIComponent(termId)}`));
+    source.onmessage = (event) => {
+      const body = JSON.parse(event.data) as { text?: string; error?: string };
+      if (body.error) setTermError(body.error);
+      if (body.text) setTermOut((current) => `${current}${body.text}`.slice(-20_000));
+    };
+    return () => source.close();
+  }, [termId, threadId]);
+
   useLayoutEffect(() => {
     const node = transcriptRef.current;
     if (!node) return;
@@ -259,6 +313,9 @@ export function App() {
       setProjects(projectList.projects);
       setPhase("work");
       setThreads((await api.recent()).threads);
+      const listedModels = await api.models().catch(() => ({ models: [] }));
+      setModels(listedModels.models);
+      setExtras(await api.capabilities().catch(() => ({ usage: false, compact: false, thinking: false })));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "登录失败");
     }
@@ -277,6 +334,19 @@ export function App() {
   function openPlus() {
     setPlusOpen(true);
     setMenuOpen(true);
+    void loadBrowse(projects.find((item) => item.id === projectId)?.path || ".");
+  }
+
+  async function loadBrowse(dir: string) {
+    try {
+      const listed = await api.browse(dir);
+      setBrowsePath(listed.path);
+      setBrowseParent(listed.parent);
+      setBrowseEntries(listed.entries.filter((entry) => entry.kind === "dir"));
+      setProjectPath(listed.path);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "打不开这个目录");
+    }
   }
 
   async function pickProject(id: number) {
@@ -304,6 +374,8 @@ export function App() {
     setGitDiff("");
     setGitError("");
     setGitUrl("");
+    setFileEntries([]);
+    setPreview("");
     setReviewOpen(false);
     setSettingsOpen(false);
   }
@@ -319,6 +391,7 @@ export function App() {
     setProjectId(item.projectId);
     setThreadId(item.id);
     applyView(await api.timeline(item.id));
+    await showFiles("", item.projectId, item.id);
   }
 
   async function loadOlder() {
@@ -351,6 +424,19 @@ export function App() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "没有删除");
     }
+  }
+
+  function samePath(left: string, right: string): boolean {
+    return left.replaceAll("\\", "/").replace(/\/+$/, "") === right.replaceAll("\\", "/").replace(/\/+$/, "");
+  }
+
+  async function onChooseDirectory(path: string) {
+    const existing = projects.find((item) => samePath(item.path, path));
+    const project = existing ?? (await api.addProject(path.split(/[/\\]/).filter(Boolean).at(-1) || path, path)).project;
+    if (!existing) setProjects((await api.projects()).projects);
+    setProjectId(project.id);
+    setProjectGit((await api.projectGit(project.id)).git);
+    setError("");
   }
 
   async function onAddProject(event: FormEvent) {
@@ -497,8 +583,94 @@ export function App() {
       paths: action === "stage" || action === "revert" ? ["."] : undefined,
     });
     if (result.diff !== undefined) setGitDiff(result.diff);
+    if (result.files) setGitFiles(result.files);
     if (result.error) setGitError(result.error);
     if (result.url) setGitUrl(result.url);
+  }
+
+  async function onPin(item: RecentThread) {
+    await api.pinThread(item.projectId, item.id, !item.pinned);
+    setMenuFor(null);
+    await refreshRecent();
+  }
+
+  async function showFiles(dir = "", forProject = projectId, forThread = threadId) {
+    if (!forProject || !forThread) return;
+    const listed = await api.files(forProject, forThread, dir);
+    setFileDir(dir);
+    setFileEntries(listed.entries);
+  }
+
+  async function openFile(relative: string) {
+    if (!projectId || !threadId) return;
+    const body = await api.file(projectId, threadId, relative);
+    setPreview(body.text ?? (body.kind === "image" ? "图片" : "这个文件不能预览"));
+  }
+
+  async function openPreview(name: string) {
+    if (!projectId || !threadId) return;
+    const next = fileDir ? `${fileDir}/${name}` : name;
+    const entry = fileEntries.find((item) => item.name === name);
+    if (entry?.kind === "dir") {
+      await showFiles(next);
+      return;
+    }
+    const body = await api.file(projectId, threadId, next);
+    setPreview(body.text ?? (body.kind === "image" ? "图片" : "这个文件不能预览"));
+  }
+
+  async function onUpload(file: File) {
+    if (!projectId || !threadId) return;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    const relative = fileDir ? `${fileDir}/${file.name}` : file.name;
+    await api.upload(projectId, threadId, relative, btoa(binary));
+    await showFiles(fileDir);
+  }
+
+  function onQuote() {
+    const selection = window.getSelection()?.toString().trim();
+    if (!selection) return;
+    const quoted = selection
+      .split("\n")
+      .map((line) => `> ${line}`)
+      .join("\n");
+    setDraft((current) => `${current}${current ? "\n" : ""}${quoted}\n`);
+  }
+
+  function onDropFiles(event: DragEvent) {
+    event.preventDefault();
+    const file = event.dataTransfer.files[0];
+    if (file) void onUpload(file);
+  }
+
+  async function openTerm() {
+    if (!projectId || !threadId) return;
+    setTermError("");
+    setTermOut("");
+    try {
+      const opened = await api.terminal(projectId, threadId);
+      setTermId(opened.id);
+    } catch (reason) {
+      setTermId("");
+      setTermError(reason instanceof Error ? reason.message : "终端启动失败。");
+    }
+  }
+
+  async function sendTerm(event: FormEvent) {
+    event.preventDefault();
+    if (!threadId || !termId || termLine === "") return;
+    const line = termLine;
+    setTermLine("");
+    await api.terminalInput(threadId, termId, `${line}\n`);
+  }
+
+  async function onCreateDirectory(event: FormEvent) {
+    event.preventDefault();
+    const created = await api.createDirectory(browsePath, dirName);
+    setDirName("");
+    await loadBrowse(created.path);
   }
 
   async function toggleArchived() {
@@ -508,398 +680,107 @@ export function App() {
     await refreshRecent(next);
   }
 
-  if (phase === "loading") {
-    return (
-      <main className="sheet login-sheet">
-        <div className="skeleton" style={{ height: 22, width: 140 }} />
-      </main>
-    );
-  }
-
-  if (phase === "login") {
-    return (
-      <div className="app">
-        <aside className="sidebar">
-          <div className="brand">
-            <Mark />
-            <span>Codex Web</span>
-          </div>
-          <p className="group-label">这台服务器</p>
-          <p className="login-note">项目、会话和审批都留在服务器上。关掉浏览器，正在跑的任务不会停。</p>
-        </aside>
-        <div className="frame">
-          <header className="topbar">
-            <span className="brand">
-              <Mark />
-              <span>Codex Web</span>
-            </span>
-          </header>
-          <main className="sheet fit">
-            <div className="title-row">
-              <div>
-                <h1>进入工作区</h1>
-                <p className="sub">用配置里的网页密码。它和 Codex 账号不是同一个。</p>
-              </div>
-            </div>
-            <div className="login-grid">
-              <form className="field login-form" onSubmit={onLogin}>
-                <label htmlFor="password">密码</label>
-                <input id="password" className="input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-                {error ? <p className="error-line">{error}</p> : null}
-                <button className="btn primary" type="submit">
-                  进入
-                </button>
-              </form>
-              <section className="login-facts">
-                <h2>进去之后</h2>
-                <div className="row">
-                  <span className="kind">项目</span>
-                  <span>只登记允许目录里的路径</span>
-                </div>
-                <div className="row">
-                  <span className="kind">会话</span>
-                  <span>记录留在 Codex 里，换一台电脑也能接着看</span>
-                </div>
-                <div className="row">
-                  <span className="kind">任务</span>
-                  <span>多条会话可以同时跑，审批和停止都在这条对话里</span>
-                </div>
-              </section>
-            </div>
-          </main>
-        </div>
-      </div>
-    );
-  }
-
-  const thread = threads.find((item) => item.id === threadId) ?? null;
-  const status = task ? STATUS_LABEL[task.status] ?? task.status : "";
-  const failure = error || task?.error || (task?.status === "failed" ? "这一轮失败了。" : "");
-  const canStop = task?.status === "running" || task?.status === "waiting_approval";
-  const visibleItems = items.filter((item) => item.text.trim() !== "" || item.command);
-  const turns = groupTurns(blocks(visibleItems));
-  const elapsed = spent(task, now);
-
   return (
-    <div className="app">
-      <aside className={menuOpen ? "sidebar open" : "sidebar"}>
-        <div className="brand">
-          <Mark />
-          <span>Codex Web</span>
-        </div>
-        <button className="btn" type="button" onClick={openPlus}>
-          新聊天
-        </button>
-        <p className="group-label">{showArchived ? "已归档" : "最近"}</p>
-        <div className="thread-list recent-list">
-          {threads.length === 0 ? <p className="empty">还没有会话</p> : null}
-          {threads.map((item) => (
-            <div key={item.id} className="nav-row">
-              <button className="nav-item recent-row" type="button" aria-current={item.id === threadId && !drafting ? "page" : undefined} onClick={() => void chooseThread(item)}>
-                <span className="nav-copy">
-                  <span className="nav-title">{item.title}</span>
-                  <small className="recent-project">
-                    {item.projectName}
-                    {item.status === "running"
-                      ? " · 执行中"
-                      : item.status === "waiting_approval"
-                        ? " · 待审批"
-                        : item.status === "interrupted"
-                          ? " · 已停止"
-                          : item.status === "failed"
-                            ? " · 失败"
-                            : item.pending
-                            ? " · 待审批"
-                            : ""}
-                  </small>
-                </span>
-              </button>
-              <button className="nav-delete" type="button" aria-label={`会话菜单 ${item.title}`} onClick={() => setMenuFor((current) => (current === item.id ? null : item.id))}>
-                ···
-              </button>
-              {menuFor === item.id ? (
-                <div className="thread-menu" role="menu">
-                  {showArchived ? (
-                    <button className="btn" type="button" onClick={() => void onUnarchive(item)}>
-                      恢复
-                    </button>
-                  ) : (
-                    <>
-                      <button className="btn" type="button" onClick={() => void onRename(item)}>
-                        改名
-                      </button>
-                      <button className="btn" type="button" onClick={() => void onArchive(item)}>
-                        归档
-                      </button>
-                      <button className="btn" type="button" onClick={() => void onFork(item)}>
-                        分叉
-                      </button>
-                      <button className="nav-delete" type="button" aria-label={`删除会话 ${item.id}`} disabled={!canDelete(item.status)} onClick={() => void onDeleteThread(item)}>
-                        删除
-                      </button>
-                    </>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-        {plusOpen ? (
-          <div className="plus-panel" role="dialog" aria-label="新聊天">
-            {projects.map((item) => (
-              <button className={item.id === projectId ? "btn primary" : "btn"} key={item.id} type="button" onClick={() => void pickProject(item.id)}>
-                {item.name}
-              </button>
-            ))}
-            {projectGit ? (
-              <fieldset className="directory-choice">
-                <legend>新会话写到哪里</legend>
-                <label>
-                  <input type="radio" name="directory" checked={directory === "worktree"} onChange={() => setDirectory("worktree")} />
-                  单独 worktree
-                </label>
-                <label>
-                  <input type="radio" name="directory" checked={directory === "local"} onChange={() => setDirectory("local")} />
-                  直接改这个目录
-                </label>
-              </fieldset>
-            ) : null}
-            <button className="btn primary" type="button" onClick={beginDraft} disabled={projects.length === 0}>
-              开始
-            </button>
-            <form className="sidebar-form" onSubmit={onAddProject}>
-              <input className="input" aria-label="项目名称" placeholder="项目名称" value={projectName} onChange={(event) => setProjectName(event.target.value)} />
-              <input className="input" aria-label="项目路径" placeholder="服务器上的路径" value={projectPath} onChange={(event) => setProjectPath(event.target.value)} />
-              <button className="btn" type="submit">
-                登记项目
-              </button>
-            </form>
-            <button className="btn ghost" type="button" onClick={() => void toggleArchived()}>
-              {showArchived ? "回到最近" : "已归档"}
-            </button>
-          </div>
-        ) : null}
-        <button className="btn sidebar-corner" type="button" aria-label="添加" onClick={openPlus}>
-          +
-        </button>
-      </aside>
-      <div className="frame">
-        <header className="topbar">
-          <button className="btn menu-toggle" type="button" onClick={() => setMenuOpen((open) => !open)}>
-            目录
-          </button>
-          <div className="brand">
-            <Mark />
-            <span>{thread && !drafting ? thread.projectName : "对话"}</span>
-          </div>
-          <div className="topbar-actions">
-            <span className={loggedIn ? "pill pos" : "pill warn"}>{loggedIn ? "Codex 已登录" : "Codex 未登录"}</span>
-            <button className="btn ghost" type="button" onClick={() => void onLogout()}>
-              退出
-            </button>
-          </div>
-        </header>
-        <main className="sheet chat-sheet">
-          <div className="title-row">
-            <div>
-              <h1>{drafting || !thread ? "新会话" : thread.title}</h1>
-              {status && !drafting ? <p className="sub">{status}</p> : null}
-            </div>
-          </div>
-          {!loggedIn ? <p className="notice">Codex 未登录。可以查看已有项目，还不能开始新的任务。</p> : null}
-          <section className="transcript" ref={transcriptRef} onScroll={onTranscriptScroll}>
-            <div className="dialogue">
-              {older ? (
-                <button className="btn ghost" type="button" onClick={() => void loadOlder()}>
-                  继续查看
-                </button>
-              ) : null}
-              {visibleItems.length === 0 ? <p className="empty">这条会话还没有对话</p> : null}
-              {turns.map((turn, index) => (
-                <section className="turn" key={turn.id}>
-                  {turn.user ? (
-                    <article className="bubble mine">
-                      <p>
-                        <Highlight id={turn.user.id} text={turn.user.text} query={findText} />
-                      </p>
-                    </article>
-                  ) : null}
-                  {turn.rest.length > 0 || (index === turns.length - 1 && elapsed) ? (
-                    <div className="reply">
-                      {turn.rest.map((block) => {
-                        if (block.kind === "agent") {
-                          const item = block.items[0];
-                          return (
-                            <p className="prose" key={item.id}>
-                              <Highlight id={item.id} text={item.text} query={findText} />
-                            </p>
-                          );
-                        }
-                        const open = Boolean(openChecks[block.items[0].id]);
-                        return (
-                          <div className="checks" key={block.items[0].id}>
-                            <button
-                              className="btn ghost"
-                              type="button"
-                              aria-expanded={open}
-                              onClick={() => setOpenChecks((current) => ({ ...current, [block.items[0].id]: !open }))}
-                            >
-                              检查项 {block.items.length}
-                            </button>
-                            {open
-                              ? block.items.map((item) => (
-                                  <div key={item.id}>
-                                    {item.command ? <pre className="command-line">{item.command}</pre> : null}
-                                    {item.text.trim() ? <pre className="command-line">{item.text}</pre> : null}
-                                  </div>
-                                ))
-                              : null}
-                          </div>
-                        );
-                      })}
-                      {index === turns.length - 1 && elapsed ? <p className="reply-time">用时 {elapsed}</p> : null}
-                    </div>
-                  ) : null}
-                </section>
-              ))}
-              {approvals.map((approval) => {
-                let payload: { text?: string } = {};
-                try {
-                  payload = JSON.parse(approval.payload) as { text?: string };
-                } catch {
-                  payload = {};
-                }
-                return (
-                  <article className="bubble approval-inline" key={approval.id}>
-                    <p>{payload.text || approval.kind}</p>
-                    <div className="row">
-                      <button className="btn primary" type="button" onClick={() => void onDecision(approval.id, "accept")}>
-                        允许这一次
-                      </button>
-                      <button className="btn" type="button" onClick={() => void onDecision(approval.id, "acceptForSession")}>
-                        这一会话都允许
-                      </button>
-                      <button className="btn" type="button" onClick={() => void onDecision(approval.id, "decline")}>
-                        拒绝
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-          {settingsOpen ? (
-            <div className="tool-layer" role="dialog" aria-label="自定义">
-              <input className="input" aria-label="在对话中查找" placeholder="在这条对话里查找" value={findText} onChange={(event) => setFindText(event.target.value)} />
-              <label>
-                模型
-                <select aria-label="模型" disabled={!loggedIn || !threadId} value={model} onChange={(event) => void onSettings({ model: event.target.value })}>
-                  <option value="">沿用当前</option>
-                  {models.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                沙箱
-                <select aria-label="沙箱" disabled={!loggedIn || !threadId} value={sandbox} onChange={(event) => void onSettings({ sandbox: event.target.value })}>
-                  <option value="">沿用当前</option>
-                  <option value="read-only">只读</option>
-                  <option value="workspace-write">工作区可写</option>
-                  <option value="danger-full-access">完全访问</option>
-                </select>
-              </label>
-              <label>
-                审批
-                <select aria-label="审批策略" disabled={!loggedIn || !threadId} value={approvalPolicy} onChange={(event) => void onSettings({ approvalPolicy: event.target.value })}>
-                  <option value="">沿用当前</option>
-                  <option value="untrusted">每次询问</option>
-                  <option value="on-request">按需询问</option>
-                  <option value="never">不再询问</option>
-                </select>
-              </label>
-              <button className="btn ghost" type="button" onClick={() => setSettingsOpen(false)}>
-                关闭
-              </button>
-            </div>
-          ) : null}
-          {reviewOpen ? (
-            <section className="tool-layer" aria-label="审查">
-              <div className="row">
-                <button className="btn" type="button" onClick={() => void onGit("diff")}>
-                  查看 diff
-                </button>
-                <button className="btn" type="button" onClick={() => void onGit("stage")}>
-                  暂存
-                </button>
-                <button className="btn" type="button" onClick={() => void onGit("revert")}>
-                  还原
-                </button>
-                <button className="btn" type="button" onClick={() => void onGit("commit")}>
-                  提交
-                </button>
-                <button className="btn" type="button" onClick={() => void onGit("push")}>
-                  推送
-                </button>
-                <button className="btn" type="button" onClick={() => void onGit("pr")}>
-                  创建 pull request
-                </button>
-              </div>
-              <input className="input" aria-label="提交说明" placeholder="提交说明" value={gitMessage} onChange={(event) => setGitMessage(event.target.value)} />
-              {gitDiff ? <pre>{gitDiff}</pre> : null}
-              {gitError ? <p className="error-line">{gitError}</p> : null}
-              {gitUrl ? <p>{gitUrl}</p> : null}
-              <button className="btn ghost" type="button" onClick={() => setReviewOpen(false)}>
-                关闭
-              </button>
-            </section>
-          ) : null}
-          {failure ? (
-            <p className="turn-error" role="alert">
-              {failure}
-            </p>
-          ) : null}
-          {queue.length > 0 ? <p className="queue-note">已排队：{queue.join(" / ")}</p> : null}
-          <form
-            className="composer"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void sendDraft();
-            }}
-          >
-            <textarea
-              aria-label="要发送的话"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={onDraftKey}
-              placeholder={loggedIn ? (thread && !drafting ? "接着这条会话说" : "写下第一句，开始新会话") : "Codex 未登录，发送会被拒绝"}
-            />
-            <div className="composer-actions">
-              {thread && !drafting ? (
-                <button className="btn ghost" type="button" onClick={() => void openReview()}>
-                  审查
-                </button>
-              ) : null}
-              {thread && !drafting ? (
-                <button className="btn ghost" type="button" onClick={() => void openSettings()}>
-                  自定义
-                </button>
-              ) : null}
-              {canStop && !drafting ? (
-                <button className="btn primary" type="button" onClick={() => void onStop()}>
-                  停止
-                </button>
-              ) : (
-                <button className="btn primary" type="submit" disabled={busy || draft.trim() === "" || !projectId}>
-                  发送
-                </button>
-              )}
-            </div>
-          </form>
-        </main>
-      </div>
-    </div>
+    <Workspace
+      phase={phase}
+      password={password}
+      setPassword={setPassword}
+      error={error}
+      onLogin={(event) => void onLogin(event)}
+      loggedIn={loggedIn}
+      projects={projects}
+      projectId={projectId}
+      projectGit={projectGit}
+      threads={threads}
+      threadId={threadId}
+      drafting={drafting}
+      items={items}
+      approvals={approvals}
+      queue={queue}
+      task={task}
+      older={older}
+      draft={draft}
+      setDraft={setDraft}
+      directory={directory}
+      setDirectory={setDirectory}
+      projectName={projectName}
+      setProjectName={setProjectName}
+      plusOpen={plusOpen}
+      setPlusOpen={setPlusOpen}
+      settingsOpen={settingsOpen}
+      setSettingsOpen={setSettingsOpen}
+      reviewOpen={reviewOpen}
+      setReviewOpen={setReviewOpen}
+      menuFor={menuFor}
+      setMenuFor={setMenuFor}
+      openChecks={openChecks}
+      setOpenChecks={setOpenChecks}
+      busy={busy}
+      findText={findText}
+      setFindText={setFindText}
+      titleQuery={titleQuery}
+      setTitleQuery={setTitleQuery}
+      pane={pane}
+      setPane={setPane}
+      fileDir={fileDir}
+      fileEntries={fileEntries}
+      preview={preview}
+      browsePath={browsePath}
+      browseParent={browseParent}
+      browseEntries={browseEntries}
+      dirName={dirName}
+      setDirName={setDirName}
+      termOut={termOut}
+      termLine={termLine}
+      setTermLine={setTermLine}
+      termError={termError}
+      gitFiles={gitFiles}
+      showArchived={showArchived}
+      models={models}
+      model={model}
+      sandbox={sandbox}
+      approvalPolicy={approvalPolicy}
+      gitDiff={gitDiff}
+      gitMessage={gitMessage}
+      setGitMessage={setGitMessage}
+      gitError={gitError}
+      gitUrl={gitUrl}
+      now={now}
+      transcriptRef={transcriptRef}
+      onLogout={() => void onLogout()}
+      openPlus={openPlus}
+      loadBrowse={(dir) => void loadBrowse(dir)}
+      pickProject={(id) => void pickProject(id)}
+      beginDraft={beginDraft}
+      chooseThread={(item) => void chooseThread(item)}
+      loadOlder={() => void loadOlder()}
+      onTranscriptScroll={onTranscriptScroll}
+      onDeleteThread={(item) => void onDeleteThread(item)}
+      onAddProject={(event) => void onAddProject(event)}
+      onChooseDirectory={onChooseDirectory}
+      sendDraft={() => void sendDraft()}
+      onDraftKey={onDraftKey}
+      onStop={() => void onStop()}
+      onDecision={(approvalId, decision) => void onDecision(approvalId, decision)}
+      onRename={(item) => void onRename(item)}
+      onArchive={(item) => void onArchive(item)}
+      onUnarchive={(item) => void onUnarchive(item)}
+      onFork={(item) => void onFork(item)}
+      onPin={(item) => void onPin(item)}
+      openSettings={() => void openSettings()}
+      openReview={() => void openReview()}
+      onSettings={(next) => void onSettings(next)}
+      onGit={(action) => void onGit(action)}
+      showFiles={(dir) => void showFiles(dir)}
+      openPreview={(name) => void openPreview(name)}
+      onUpload={(file) => void onUpload(file)}
+      onDropFiles={onDropFiles}
+      onQuote={onQuote}
+      onOpenFile={(path) => void openFile(path)}
+      openTerm={() => void openTerm()}
+      sendTerm={(event) => void sendTerm(event)}
+      onCreateDirectory={(event) => void onCreateDirectory(event)}
+      toggleArchived={() => void toggleArchived()}
+    />
   );
 }

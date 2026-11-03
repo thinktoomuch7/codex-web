@@ -133,14 +133,14 @@ describe("Codex 网关", () => {
     }
   });
 
-  it("拒绝根目录外的路径，另一条会话可以同时开始，同一条会话不会再开一轮", async () => {
+  it("配置根之外的目录可以登记，另一条会话可以同时开始，同一条会话不会再开一轮", async () => {
     const harness = await startHarness();
     const outside = mkdtempSync(path.join(tmpdir(), "codex-web-outside-"));
     try {
-      assert.throws(() => resolveProjectPath(outside, [harness.root]), /项目路径不在允许的根目录内/);
+      assert.equal(resolveProjectPath(outside, [harness.root]), outside);
       const login = await request(harness.port, "POST", "/api/login", { password: "secret" });
-      const rejected = await request(harness.port, "POST", "/api/projects", { name: "bad", path: outside }, login.cookie);
-      assert.equal(rejected.status, 400);
+      const accepted = await request(harness.port, "POST", "/api/projects", { name: "bad", path: outside }, login.cookie);
+      assert.equal(accepted.status, 201);
       const created = await request(harness.port, "POST", "/api/projects", { name: "demo", path: harness.root }, login.cookie);
       const project = created.json.project as { id: number };
       const first = await request(harness.port, "POST", `/api/projects/${project.id}/threads`, { text: "第一句", cwd: outside }, login.cookie);

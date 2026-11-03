@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import path from "node:path";
 import type { AppConfig } from "./config.ts";
 import { windowItems, type Runtime } from "./runtime.ts";
+import { terminalSession } from "./terminal.ts";
 
 const COOKIE = "cw_session";
 
@@ -79,6 +80,22 @@ async function route(
     const body = await readJson(request);
     const project = runtime.addProject(String(body.name ?? ""), String(body.path ?? ""));
     sendJson(response, 201, { project });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/directories") {
+    sendJson(response, 200, runtime.browseDirectory(url.searchParams.get("path") || (process.platform === "win32" ? "C:\\" : "/")));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/directories") {
+    const body = await readJson(request);
+    sendJson(response, 201, runtime.createDirectory(String(body.parent ?? ""), String(body.name ?? "")));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/capabilities") {
+    sendJson(response, 200, runtime.capabilities());
     return;
   }
 
@@ -238,6 +255,75 @@ async function route(
     ready = true;
     write();
     request.on("close", () => unsubscribe());
+    return;
+  }
+
+  const files = url.pathname.match(/^\/api\/threads\/([^/]+)\/files$/);
+  if (request.method === "GET" && files) {
+    const threadId = decodeURIComponent(files[1]);
+    sendJson(response, 200, runtime.listFiles(Number(url.searchParams.get("projectId")), threadId, url.searchParams.get("path") ?? ""));
+    return;
+  }
+
+  const file = url.pathname.match(/^\/api\/threads\/([^/]+)\/file$/);
+  if (request.method === "GET" && file) {
+    const threadId = decodeURIComponent(file[1]);
+    sendJson(response, 200, runtime.readFile(Number(url.searchParams.get("projectId")), threadId, url.searchParams.get("path") ?? ""));
+    return;
+  }
+
+  if (request.method === "POST" && files) {
+    const body = await readJson(request);
+    const threadId = decodeURIComponent(files[1]);
+    sendJson(response, 201, runtime.uploadFile(Number(body.projectId), threadId, String(body.path ?? ""), String(body.data ?? "")));
+    return;
+  }
+
+  const terminal = url.pathname.match(/^\/api\/threads\/([^/]+)\/terminal$/);
+  if (request.method === "POST" && terminal) {
+    const body = await readJson(request);
+    const session = await runtime.openTerminal(Number(body.projectId), decodeURIComponent(terminal[1]));
+    sendJson(response, session.error ? 400 : 201, session.error ? { error: session.error } : { id: session.id, cwd: session.cwd });
+    return;
+  }
+
+  const terminalInput = url.pathname.match(/^\/api\/threads\/([^/]+)\/terminal\/input$/);
+  if (request.method === "POST" && terminalInput) {
+    const body = await readJson(request);
+    sendJson(response, 200, runtime.writeTerminal(String(body.id ?? ""), String(body.data ?? "")));
+    return;
+  }
+
+  const terminalEvents = url.pathname.match(/^\/api\/threads\/([^/]+)\/terminal\/events$/);
+  if (request.method === "GET" && terminalEvents) {
+    runtime.assertBrowserAction("terminal");
+    const id = url.searchParams.get("id") ?? "";
+    const session = terminalSession(id);
+    if (!session) {
+      sendJson(response, 404, { error: "终端不存在" });
+      return;
+    }
+    response.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    if (session.output) response.write(`data: ${JSON.stringify({ text: session.output })}\n\n`);
+    if (session.error) response.write(`data: ${JSON.stringify({ error: session.error })}\n\n`);
+    const listener = (chunk: string) => {
+      if (!response.writableEnded) response.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+    };
+    session.listeners.add(listener);
+    request.on("close", () => session.listeners.delete(listener));
+    return;
+  }
+
+  const pin = url.pathname.match(/^\/api\/threads\/([^/]+)\/pin$/);
+  if (request.method === "POST" && pin) {
+    const body = await readJson(request);
+    runtime.pinThread(Number(body.projectId), decodeURIComponent(pin[1]), body.pinned === true);
+    sendJson(response, 200, { ok: true });
     return;
   }
 

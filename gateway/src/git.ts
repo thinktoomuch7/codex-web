@@ -62,6 +62,11 @@ export async function isGitRepo(cwd: string): Promise<boolean> {
   }
 }
 
+export function worktreeCheckoutPath(repo: string, branch: string): string {
+  const leaf = branch.replaceAll("/", "-").replaceAll("\\", "-");
+  return path.join(path.dirname(repo), `${path.basename(repo)}-worktrees`, leaf);
+}
+
 export function assertWorktreeAllowed(target: string, repo: string, projects: string[]): void {
   if (projects.some((project) => isInside(project, target)) || isInside(repo, target)) {
     throw new Error("检出不能放进已登记项目或仓库里面");
