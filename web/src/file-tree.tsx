@@ -22,11 +22,12 @@ export function FileTree({
   const [failed, setFailed] = useState("");
 
   useEffect(() => {
-    if (!projectId || !threadId) return;
+    if (!projectId) return;
     let cancelled = false;
-    api.files(projectId, threadId, "").then(
-      (listed) => {
-        if (!cancelled) setChildren({ "": listed.entries });
+    const listed = threadId ? api.files(projectId, threadId, "") : api.projectFiles(projectId, "");
+    listed.then(
+      (result) => {
+        if (!cancelled) setChildren({ "": result.entries });
       },
       (reason: unknown) => {
         if (!cancelled) setFailed(reason instanceof Error ? reason.message : "文件列表失败");
@@ -40,12 +41,12 @@ export function FileTree({
   async function toggle(path: string) {
     const next = !open[path];
     setOpen((current) => ({ ...current, [path]: next }));
-    if (!next || children[path] || !projectId || !threadId) return;
-    const listed = await api.files(projectId, threadId, path);
+    if (!next || children[path] || !projectId) return;
+    const listed = threadId ? await api.files(projectId, threadId, path) : await api.projectFiles(projectId, path);
     setChildren((current) => ({ ...current, [path]: listed.entries }));
   }
 
-  if (!projectId || !threadId) return <p className="session-tree-message">打开一条会话后查看文件</p>;
+  if (!projectId) return <p className="session-tree-message">选择目录后查看文件</p>;
   if (failed) return <p className="sidebar-files-error-text">{failed}</p>;
   return <Branch path="" depth={0} query={query.trim().toLowerCase()} children={children} open={open} onToggle={(path) => void toggle(path)} onOpen={onOpen} />;
 }

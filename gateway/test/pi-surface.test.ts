@@ -48,6 +48,31 @@ describe("目录、文件和终端", () => {
     }
   });
 
+  it("选中目录后不用开会话也能列出文件", async () => {
+    const harness = await startHarness();
+    const outside = mkdtempSync(path.join(tmpdir(), "codex-web-secret-"));
+    writeFileSync(path.join(outside, "secret.txt"), "nope");
+    try {
+      const login = await request(harness.port, "POST", "/api/login", { password: "secret" });
+      const project = await request(harness.port, "POST", "/api/projects", { name: "demo", path: harness.root }, login.cookie);
+      const projectId = (project.json.project as { id: number }).id;
+      writeFileSync(path.join(harness.root, "note.txt"), "hello");
+      const listed = await request(harness.port, "GET", `/api/projects/${projectId}/files`, undefined, login.cookie);
+      assert.equal(listed.status, 200);
+      assert.equal((listed.json.entries as { name: string }[]).some((entry) => entry.name === "note.txt"), true);
+      const escaped = await request(
+        harness.port,
+        "GET",
+        `/api/projects/${projectId}/files?path=${encodeURIComponent("../secret.txt")}`,
+        undefined,
+        login.cookie,
+      );
+      assert.equal(escaped.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
   it("终端把输出流回来，启动失败时返回原因", async () => {
     const harness = await startHarness();
     setTerminalBackend({

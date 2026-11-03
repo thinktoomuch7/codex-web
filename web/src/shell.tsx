@@ -391,7 +391,7 @@ export function Workspace(props: WorkspaceProps) {
                 <button type="button" className="sidebar-tool-button" title="选择目录" aria-label="选择目录" aria-expanded={props.plusOpen} onClick={props.openPlus}>
                   <PlusIcon />
                 </button>
-                <button type="button" className="sidebar-tool-button" title="刷新" aria-label="刷新" disabled={!props.threadId} onClick={() => setTreeNonce((value) => value + 1)}>
+                <button type="button" className="sidebar-tool-button" title="刷新" aria-label="刷新" disabled={!props.projectId} onClick={() => setTreeNonce((value) => value + 1)}>
                   <RefreshIcon />
                 </button>
                 <button
@@ -448,7 +448,7 @@ export function Workspace(props: WorkspaceProps) {
                 <FileTree
                   key={treeNonce}
                   projectId={props.projectId}
-                  threadId={props.drafting ? null : props.threadId}
+                  threadId={!props.drafting && thread?.projectId === props.projectId ? props.threadId : null}
                   query={fileQuery}
                   onOpen={(path) => void props.onOpenFile(path)}
                 />

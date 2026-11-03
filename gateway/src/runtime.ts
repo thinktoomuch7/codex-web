@@ -477,6 +477,11 @@ export class Runtime {
     return listTree(place.cwd, relative);
   }
 
+  listProjectFiles(projectId: number, relative = "") {
+    this.assertBrowserAction("list-files");
+    return listTree(this.project(projectId).path, relative);
+  }
+
   readFile(projectId: number, threadId: string, relative: string) {
     this.assertBrowserAction("read-file");
     const place = this.requirePlace(projectId, threadId);

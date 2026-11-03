@@ -104,6 +104,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ projectId, pinned }),
     }),
+  projectFiles: (projectId: number, dir = "") =>
+    send<{ path: string; entries: { name: string; kind: "dir" | "file" }[] }>(
+      `/api/projects/${projectId}/files?path=${encodeURIComponent(dir)}`,
+    ),
   files: (projectId: number, threadId: string, dir = "") =>
     send<{ path: string; entries: { name: string; kind: "dir" | "file" }[] }>(
       `/api/threads/${encodeURIComponent(threadId)}/files?projectId=${projectId}&path=${encodeURIComponent(dir)}`,

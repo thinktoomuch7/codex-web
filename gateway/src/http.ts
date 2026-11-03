@@ -105,6 +105,12 @@ async function route(
     return;
   }
 
+  const projectFiles = url.pathname.match(/^\/api\/projects\/(\d+)\/files$/);
+  if (request.method === "GET" && projectFiles) {
+    sendJson(response, 200, runtime.listProjectFiles(Number(projectFiles[1]), url.searchParams.get("path") ?? ""));
+    return;
+  }
+
   const projectGit = url.pathname.match(/^\/api\/projects\/(\d+)\/git$/);
   if (request.method === "GET" && projectGit) {
     runtime.assertBrowserAction("list-projects");
